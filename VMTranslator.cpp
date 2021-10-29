@@ -1,5 +1,6 @@
 #include <string>
 #include <fstream>
+#include <iostream>
 using namespace std;
 /*
 	Functionality: Contains all the methods neccessary for parsing a document in JACK VM code
@@ -8,25 +9,36 @@ class Parser
 {
 private:
 	ifstream vmCode;
+	string currentLine;
 	string currentInstruction;
 	string currentCommand;
-	string currentSegment;
+	string currentCommandType;
+	string currentModifier;
+	int currentIndex;
+	/*
+		Functionality: Determines if the current line being traversed contains an instruction. If
+		               it does, returns true.
+	*/
+	bool currentLineHasInstruction();
 
 public:
 	Parser(string fileName);
 	~Parser() { vmCode.close(); }
 
 	string getCurrentCommand() { return currentCommand; }
-	string getCurrentSegment() { return currentSegment; }
+	string getCurrentCommandType() { return currentCommandType; }
+	string getCurrentModifier() { return currentModifier; }
+	int getCurrentIndex() { return currentIndex; }
 
 	/*
 		Functionality: Returns true if there are more commands in the input. False otherwise.
 	*/
 	bool hasMoreCommands();
 	/*
-		Functionality: Reads the next command from the input and makes it the current command. 
-		               Should only be called if hasMoreCommands() returns true. At the beginning,
-					   there is no current command.
+		Functionality: Should only be called if hasMoreCommands() returns true. It reads the 
+		               current line and stores it, extracts the current command, command type,
+					   current segment (if applicable), and current index (if applicable), and 
+					   stores all the information.
 	*/
 	void advance();
 	/*
@@ -104,21 +116,21 @@ int main(int argc, char* argv[])
 	while (parser.hasMoreCommands())
 	{
 		parser.advance();
-		string commandType = parser.commandType();
+		string commandType = parser.getCurrentCommandType();
 
 		bool commandIsReturn = (commandType == "C_RETURN");
 		if (!commandIsReturn)
 		{
-			string firstArgument = parser.arg1();
-			string secondArgument = "";
+			string command = parser.getCurrentCommand();
+			string modifier = "";
 
-			bool thereIsSecondArgument = (commandType == "C_PUSH"     || 
-				                          commandType == "C_POP"      ||
-				                          commandType == "C_FUNCTION" || 
-				                          commandType == "C_CALL");
-			if (thereIsSecondArgument)
+			bool thereIsModifier = (commandType == "C_PUSH"     || 
+				                    commandType == "C_POP"      ||
+				                    commandType == "C_FUNCTION" || 
+				                    commandType == "C_CALL");
+			if (thereIsModifier)
 			{
-				secondArgument = parser.arg2();
+				modifier = parser.getCurrentModifier();
 			}
 
 			bool commandIsArithmetic = (commandType == "C_ARITHMETIC");
@@ -126,18 +138,65 @@ int main(int argc, char* argv[])
 
 			if (commandIsArithmetic)
 			{
-				writer.writeArithmetic(firstArgument);
+				writer.writeArithmetic(command);
 			}
 			else if (commandIsPushPop)
 			{
 				string command = parser.getCurrentCommand();
-				string segment = parser.getCurrentSegment();
-				int index = parser.arg2();
+				string segment = parser.getCurrentModifier();
+				int index = parser.getCurrentIndex();
 
-				writer.writePushPop(command, segment, index);
+				writer.writePushPop(command, segment, index); 
 				
 			}
 		}
 	}
 	return 0;
+}
+
+Parser::Parser(string fileName)
+{
+	vmCode.open(fileName);
+	currentLine = "";
+	currentInstruction = "";
+	currentCommand = "";
+	currentCommandType = "";
+	currentSegment = "";
+	currentIndex = -1;
+}
+
+bool Parser::hasMoreCommands()
+{
+	bool hasMoreCommands = (vmCode.eof() == false);
+	if (hasMoreCommands) return true;
+	return false;
+}
+
+void Parser::advance()
+{
+	getline(vmCode, currentLine);
+
+	if (currentLineHasInstruction())
+	{
+		currentInstruction = extractInstructionFrom(currentLine);
+		currentCommand = extractCommandFrom(currentInstruction);
+		currentCommandType = extractCommandTypeFrom(currentCommand);
+		
+		if (currentInstructionHasSegment())
+		{
+			currentSegment = extractSegmentFrom(currentInstruction);
+
+		}
+		if (currentInstructionHasIndex())
+		{
+			currentIndex = extractIndexFrom(currentInstruction);
+		}
+	}
+}
+
+bool Parser::currentLineHasInstruction()
+{
+	bool currentLineIsEmpty = (currentLine.empty() == true);
+	if (currentLineIsEmpty) return false;
+	else if
 }

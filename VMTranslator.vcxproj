@@ -139,6 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="testVMTranslator.cpp" />
     <ClCompile Include="VMTranslator.cpp" />
   </ItemGroup>
   <ItemGroup>
