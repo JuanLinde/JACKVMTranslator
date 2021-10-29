@@ -8,11 +8,17 @@ class Parser
 {
 private:
 	ifstream vmCode;
+	string currentInstruction;
 	string currentCommand;
+	string currentSegment;
 
 public:
-	Parser(string fileName) { vmCode.open(fileName); }
+	Parser(string fileName);
 	~Parser() { vmCode.close(); }
+
+	string getCurrentCommand() { return currentCommand; }
+	string getCurrentSegment() { return currentSegment; }
+
 	/*
 		Functionality: Returns true if there are more commands in the input. False otherwise.
 	*/
@@ -50,7 +56,10 @@ public:
 	*/
 	int arg2();
 };
-
+/*
+	This class contains all the methods necessary to translate an instruction from JACK VM code
+	to HACK assembly language and output the translation into an output file.
+*/
 class CodeWriter
 {
 private:
@@ -72,8 +81,63 @@ public:
 	*/
 	void writePushPop(string c, string s, int ind);
 };
+/*
+	Functionality: Goes through the input file containing JACK VM code and translates it to HACK
+	               assembly language. Puts the resulting code in an output file.
 
+*/
 int main(int argc, char* argv[])
 {
+	string inputFileName = argv[1];
+	string outputFileName = "output.txt";
+	Parser parser(inputFileName);
+	CodeWriter writer(outputFileName);
 
+	/*
+		1. While there are lines in the input file:
+		2.   Extract the command from the line if applicable
+		3.   Extract the command type from the command if applicable
+		4.   Extract the first argument from the command if applicable
+		5.   Extract the second argument from the command if applicable
+		6.   Writes the code corresponding to the command 
+	*/
+	while (parser.hasMoreCommands())
+	{
+		parser.advance();
+		string commandType = parser.commandType();
+
+		bool commandIsReturn = (commandType == "C_RETURN");
+		if (!commandIsReturn)
+		{
+			string firstArgument = parser.arg1();
+			string secondArgument = "";
+
+			bool thereIsSecondArgument = (commandType == "C_PUSH"     || 
+				                          commandType == "C_POP"      ||
+				                          commandType == "C_FUNCTION" || 
+				                          commandType == "C_CALL");
+			if (thereIsSecondArgument)
+			{
+				secondArgument = parser.arg2();
+			}
+
+			bool commandIsArithmetic = (commandType == "C_ARITHMETIC");
+			bool commandIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
+
+			if (commandIsArithmetic)
+			{
+				writer.writeArithmetic(firstArgument);
+			}
+			else if (commandIsPushPop)
+			{
+				string command = parser.getCurrentCommand();
+				string segment = parser.getCurrentSegment();
+				int index = parser.arg2();
+
+				writer.writePushPop(command, segment, index);
+				
+			}
+		}
+	}
+	return 0;
 }
