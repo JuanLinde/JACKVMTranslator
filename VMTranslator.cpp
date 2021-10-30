@@ -15,11 +15,13 @@ private:
 	string currentCommandType;
 	string currentModifier;
 	int currentIndex;
+
+	// Helper functions:
 	/*
-		Functionality: Determines if the current line being traversed contains an instruction. If
-		               it does, returns true.
+		Functionality: Receives a reference to a string, cl, and removes leading whitespaces and
+		               in-line comments from it in place
 	*/
-	bool currentLineHasInstruction();
+	void removeWhitespaceFrom(string&);
 
 public:
 	Parser(string fileName);
@@ -33,9 +35,9 @@ public:
 	/*
 		Functionality: Returns true if there are more commands in the input. False otherwise.
 	*/
-	bool hasMoreCommands();
+	bool hasMoreLines();
 	/*
-		Functionality: Should only be called if hasMoreCommands() returns true. It reads the 
+		Functionality: Should only be called if hasMoreLines() returns true. It reads the 
 		               current line and stores it, extracts the current command, command type,
 					   current segment (if applicable), and current index (if applicable), and 
 					   stores all the information.
@@ -113,7 +115,7 @@ int main(int argc, char* argv[])
 		5.   Extract the second argument from the command if applicable
 		6.   Writes the code corresponding to the command 
 	*/
-	while (parser.hasMoreCommands())
+	while (parser.hasMoreLines())
 	{
 		parser.advance();
 		string commandType = parser.getCurrentCommandType();
@@ -165,23 +167,25 @@ Parser::Parser(string fileName)
 	currentIndex = -1;
 }
 
-bool Parser::hasMoreCommands()
+bool Parser::hasMoreLines()
 {
-	bool hasMoreCommands = (vmCode.eof() == false);
-	if (hasMoreCommands) return true;
+	bool hasMoreLines = (vmCode.eof() == false);
+	if (hasMoreLines) return true;
 	return false;
 }
 
 void Parser::advance()
 {
 	getline(vmCode, currentLine);
+	removeWhitespaceFrom(currentLine);
+
 
 	if (currentLineHasInstruction())
 	{
 		currentInstruction = extractInstructionFrom(currentLine);
 		currentCommand = extractCommandFrom(currentInstruction);
 		currentCommandType = extractCommandTypeFrom(currentCommand);
-		
+
 		if (currentInstructionHasSegment())
 		{
 			currentSegment = extractSegmentFrom(currentInstruction);
@@ -194,9 +198,47 @@ void Parser::advance()
 	}
 }
 
-bool Parser::currentLineHasInstruction()
+/*
+	Functionality: Receives a string, cl, and removes all the spaces at the beginning in place.
+
+	General Algorithm:
+
+	1. Check if string is empty
+	2. If it is not empty:
+	3.   Look for the position of the first space character
+	4.   Look for the position of the first non-space character
+	5.   Check if there are leading spaces
+	6.   If there are:
+	7.      erase leading spaces
+	8.   Look for the position of the beginning of an in-line comment
+	9.   Check if there is an in-line comment and if it isn't a line containing just a comment
+	10.  If there is an inline comment:
+	11.    remove it from the string
+
+	Complexity: O(n) where n is the lenght of the passed string.
+*/
+void Parser::removeWhitespaceFrom(string& cl)
 {
-	bool currentLineIsEmpty = (currentLine.empty() == true);
-	if (currentLineIsEmpty) return false;
-	else if
+	bool stringIsEmpty = (cl.empty() == true);
+	if (!stringIsEmpty)
+	{
+		size_t firstSpacePos = cl.find_first_of(" ");
+		size_t firstCharPos = cl.find_first_not_of(" ");
+
+
+		bool thereAreLeadingSpaces = (firstSpacePos == 0);
+		if (thereAreLeadingSpaces)
+		{
+			cl.erase(firstSpacePos, firstCharPos);
+		}
+
+		size_t firstCommPos = cl.find_first_of("/");
+		bool thereAreInlineComments = (firstCommPos != 0 && firstCommPos != string::npos);
+		if (thereAreInlineComments)
+		{
+			cl.erase(firstCommPos);
+		}
+	}
 }
+
+
