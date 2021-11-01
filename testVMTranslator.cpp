@@ -98,11 +98,30 @@ int main(int argc, char* argv[])
 	string inputFileName = argv[1];
 	Parser parser(inputFileName);
 	ofstream outputCode("outputTest.txt");
-	string line;
 
 	while (parser.hasMoreLines())
 	{
 		parser.advance();
+		string commandType = parser.getCurrentCommandType();
+
+		bool commandIsReturn = (commandType == "C_RETURN");
+		if (!commandIsReturn)
+		{
+			string command = parser.getCurrentCommand();
+
+			bool commandIsArithmetic = (commandType == "C_ARITHMETIC");
+			bool commandIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
+
+			if (commandIsArithmetic) writer.writeArithmetic(command);
+			//else if (commandIsPushPop)
+			//{
+			//	string command = parser.getCurrentCommand();
+			//	string segment = parser.getCurrentModifier();
+			//	int index = parser.getCurrentIndex();
+
+			//	writer.writePushPop(command, segment, index);
+			//}
+		}
 
 	}
 	return 0;

@@ -159,24 +159,11 @@ int main(int argc, char* argv[])
 		if (!commandIsReturn)
 		{
 			string command = parser.getCurrentCommand(); 
-			string modifier = "";
-
-			bool thereIsModifier = (commandType == "C_PUSH"     || 
-				                    commandType == "C_POP"      ||
-				                    commandType == "C_FUNCTION" || 
-				                    commandType == "C_CALL");
-			if (thereIsModifier)
-			{
-				modifier = parser.getCurrentModifier();
-			}
 
 			bool commandIsArithmetic = (commandType == "C_ARITHMETIC");
 			bool commandIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
 
-			if (commandIsArithmetic)
-			{
-				writer.writeArithmetic(command);
-			}
+			if (commandIsArithmetic) writer.writeArithmetic(command);
 			else if (commandIsPushPop)
 			{
 				string command = parser.getCurrentCommand();
@@ -184,7 +171,6 @@ int main(int argc, char* argv[])
 				int index = parser.getCurrentIndex();
 
 				writer.writePushPop(command, segment, index); 
-				
 			}
 		}
 	}
