@@ -10,10 +10,9 @@ class Parser
 {
 private:
 	ifstream vmCode;
-	string currentInstruction;
 	string currentCommand;
 	string currentCommandType;
-	string currentSegment;
+	string currentModifier;
 	int currentIndex;
 	/*
 		Functionality: Determines if the current line being traversed contains an instruction. If
@@ -24,6 +23,52 @@ private:
 		Functionality: Receives a string, cl, and removes all the spaces at the beginning in place.
 	*/
 	void removeWhitespaceFrom(string&);
+	/*
+		Functionality: Receives the current line being traversed, cL, and extracts and returns the
+		               command in a string.
+	*/
+	string extractCommandFrom(string);
+	/*
+		Functionality: Receives a string that contains the current line being traversed, cL, and 
+		               extracts and returns the current command type from it. This function assumes 
+					   that whitespaces have been removed from the current line and that it 
+					   contains an instruction in JACK VM.
+
+	
+
+		Return types:
+					   C_ARITHMETIC - All arithmetic commands
+					   C_PUSH
+					   C_POP
+					   C_LABEL
+					   C_GOTO
+					   C_IF
+					   C_FUNCTION
+					   C_RETURN
+					   C_CALL
+	*/
+	string extractCommandTypeFrom(string);
+	/*
+		Functionality: Receives the command type of the current instruction, cT, and returns true
+		               or false depending upon the syntax of the command type.
+
+	*/
+	bool currentCommandHasModifier();
+	/*
+		Functionality: Access the current command and extracts the modifier from it. It assumes the
+		               program has checked if the command contains a modifier.
+	*/
+	string extractModifier(string);
+	/*
+		Functionality: Receives the current line, cL, and determines if there is an index to be
+		               extracted from it. It supposes the current line contains a valid instruct.
+	*/
+	bool currentInstructionHasIndex();
+	/*
+		Functionality: Receives the current line, cL, and extracts the index from it. It assumes
+		               the current line has a valid instruction and contains an index.
+	*/
+	int extractIndex(string); 
 
 public:
 	Parser(string fileName);
@@ -31,7 +76,7 @@ public:
 
 	string getCurrentCommand() { return currentCommand; }
 	string getCurrentCommandType() { return currentCommandType; }
-	string getCurrentSegment() { return currentSegment; }
+	string getCurrentModifier() { return currentModifier; }
 	int getCurrentIndex() { return currentIndex; }
 
 
@@ -58,17 +103,28 @@ int main(int argc, char* argv[])
 	while (parser.hasMoreLines())
 	{
 		parser.advance();
+
 	}
 	return 0;
+}
+/*
+	Functionality: Receives the command type of the current instruction, cT, and returns true
+				   or false depending upon the syntax of the command type.
+
+*/
+bool Parser::currentCommandHasModifier()
+{
+	bool currCommandHasModifier = (currentCommandType != "C_ARITHMETIC");
+	if (currCommandHasModifier) return true;
+	else return false;
 }
 
 Parser::Parser(string fileName)
 {
 	vmCode.open(fileName);
-	currentInstruction = "";
 	currentCommand = "";
 	currentCommandType = "";
-	currentSegment = "";
+	currentModifier = "";
 	currentIndex = -1;
 }
 
@@ -87,7 +143,27 @@ void Parser::advance()
 
 	if (HasInstruction(currentLine))
 	{
-		
+		currentCommand = extractCommandFrom(currentLine);
+		currentCommandType = extractCommandTypeFrom(currentCommand);
+
+		if (currentCommandHasModifier())
+		{
+			currentModifier = extractModifier(currentLine);
+		}
+		else currentModifier = "";
+
+		if (currentInstructionHasIndex())
+		{
+			currentIndex = extractIndex(currentLine); 
+		}
+		else currentIndex = -1;
+	}
+	else
+	{
+		currentCommand = "";
+		currentCommandType = "";
+		currentModifier = "";
+		currentIndex = -1;
 	}
 }
 /*
@@ -140,6 +216,17 @@ void Parser::removeWhitespaceFrom(string& cl)
 	}
 }
 /*
+	Functionality: Receives the current line being traversed, cL, and extracts and returns the
+				   command in a string. This functions assumes that the current line has no
+				   whitespaces and has an instruction.
+*/
+string Parser::extractCommandFrom(string cL)
+{
+	size_t firstSpacePos = cL.find_first_of(" ");
+	string command = cL.substr(0, firstSpacePos);
+	return command;
+}
+/*
 	Functionality: Determines if the current line being traversed contains an instruction. If
 				   it does, returns true. This should be called after whitespaces have been 
 				   removed from the current line.
@@ -157,4 +244,78 @@ bool Parser::HasInstruction(string cL)
 	if (currentLineIsEmpty) return false;
 	else if (currentLineIsComment) return false;
 	else return true;
+}
+/*
+	Functionality: Receives a string that contains the current line being traversed, cL, and
+				   extracts and returns the current command type from it. This function assumes
+				   that whitespaces have been removed from the current line and that it
+				   contains an instruction in JACK VM.
+
+	Return types:
+					   C_ARITHMETIC - All arithmetic commands
+					   C_PUSH
+					   C_POP
+					   C_LABEL
+					   C_GOTO
+					   C_IF
+					   C_FUNCTION
+					   C_RETURN
+					   C_CALL
+*/
+string Parser::extractCommandTypeFrom(string command)
+{
+
+
+	bool commandIsArithmetic = (command == "add" ||
+								command == "sub" ||
+								command == "gt"  ||
+								command == "lt"  ||
+								command == "eq"  ||
+								command == "neg" ||
+								command == "and" ||
+								command == "or"  ||
+								command == "not");
+
+	bool commandIsPush = (command == "push");
+	bool commandIsPop = (command == "pop");
+
+	if (commandIsArithmetic) return "C_ARITHMETIC";
+	else if (commandIsPush) return "C_PUSH";
+	else if (commandIsPop) return "C_POP";
+	else return "not implemented yet";
+
+}
+/*
+	Functionality: Access the current command and extracts the modifier from it. It assumes the
+				   program has checked if the command contains a modifier.
+*/
+string Parser::extractModifier(string cL)
+{
+	size_t firstSpacePos = cL.find_first_of(" ");
+	size_t secondSpacePos = cL.find(" ", firstSpacePos+1);
+	string modifier = cL.substr(firstSpacePos + 1, secondSpacePos - firstSpacePos - 1);
+	return modifier;
+}
+/*
+	Functionality: Receives the current line, cL, and determines if there is an index to be
+				   extracted from it. It supposes the current line contains a valid instruct.
+*/
+bool Parser::currentInstructionHasIndex()
+{
+	bool currInstHasIndex = (currentCommandType == "C_PUSH" || currentCommandType == "C_POP" ||
+							 currentCommand == "C_FUNCTION");
+
+	if (currInstHasIndex) return true;
+	else return false;
+}
+/*
+	Functionality: Receives the current line, cL, and extracts the index from it. It assumes
+				   the current line has a valid instruction and contains an index.
+*/
+int Parser::extractIndex(string cL)
+{
+	size_t firstSpacePos = cL.find(" ");
+	size_t secondSpacePos = cL.find(" ", firstSpacePos + 1);
+	int index = stoi(cL.substr(secondSpacePos + 1));
+	return index;
 }
