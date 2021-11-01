@@ -1,5 +1,6 @@
 #include <string>
 #include <fstream>
+#include <iostream>
 using namespace std;
 
 /*
@@ -9,7 +10,6 @@ class Parser
 {
 private:
 	ifstream vmCode;
-	string currentLine;
 	string currentInstruction;
 	string currentCommand;
 	string currentCommandType;
@@ -19,7 +19,7 @@ private:
 		Functionality: Determines if the current line being traversed contains an instruction. If
 					   it does, returns true.
 	*/
-	bool currentLineHasInstruction();
+	bool HasInstruction(string);
 	/*
 		Functionality: Receives a string, cl, and removes all the spaces at the beginning in place.
 	*/
@@ -34,7 +34,6 @@ public:
 	string getCurrentSegment() { return currentSegment; }
 	int getCurrentIndex() { return currentIndex; }
 
-	string getCurrentLine() { return currentLine; }
 
 	/*
 		Functionality: Returns true if there are more commands in the input. False otherwise.
@@ -59,8 +58,6 @@ int main(int argc, char* argv[])
 	while (parser.hasMoreLines())
 	{
 		parser.advance();
-		line = parser.getCurrentLine();
-		outputCode << line << endl;
 	}
 	return 0;
 }
@@ -68,7 +65,6 @@ int main(int argc, char* argv[])
 Parser::Parser(string fileName)
 {
 	vmCode.open(fileName);
-	currentLine = "";
 	currentInstruction = "";
 	currentCommand = "";
 	currentCommandType = "";
@@ -85,14 +81,14 @@ bool Parser::hasMoreLines()
 
 void Parser::advance()
 {
+	string currentLine;
 	getline(vmCode, currentLine);
 	removeWhitespaceFrom(currentLine);
 
-	if (currentLineHasInstruction())
+	if (HasInstruction(currentLine))
 	{
-		************************************************
+		
 	}
-
 }
 /*
 	Functionality: Receives a string, cl, and removes all the spaces at the beginning in place.
@@ -134,5 +130,31 @@ void Parser::removeWhitespaceFrom(string& cl)
 		{
 			cl.erase(firstCommPos);
 		}
+
+		size_t lastCharOfInstructionPos = (cl.find_last_not_of(" "));
+		bool thereAreTrailingWhiteSpaces = (cl.back() == ' ');
+		if (thereAreTrailingWhiteSpaces)
+		{
+			cl.erase(lastCharOfInstructionPos + 1);
+		}
 	}
+}
+/*
+	Functionality: Determines if the current line being traversed contains an instruction. If
+				   it does, returns true. This should be called after whitespaces have been 
+				   removed from the current line.
+
+	Algorithm:
+	
+	1. If current line is empty return false
+	2. Else if current line is a comment return false
+	3. Else return true
+*/
+bool Parser::HasInstruction(string cL)
+{
+	bool currentLineIsEmpty = (cL.empty() == true);
+	bool currentLineIsComment = (!currentLineIsEmpty && cL.at(0) == '/');
+	if (currentLineIsEmpty) return false;
+	else if (currentLineIsComment) return false;
+	else return true;
 }
