@@ -104,45 +104,24 @@ class CodeWriter
 private:
 	ofstream assemblyCode;
 
-	// Helper functions
-	/*
-		Functionality: Receives an arithmetic command and outputs the corresponding translation to
-		               the output file containing the code in HACK assembly language.
-	*/
-	void writeArithmeticPop(string);
 public:
-	CodeWriter(string fileName) { assemblyCode.open(fileName); }
-	~CodeWriter() { assemblyCode.close(); }
+	CodeWriter(string fileName);
+	~CodeWriter();
+	int writtenInstructionsSoFar;
 
 	/*
 		Functionality: Receives a string, c, that contains an arithmetic command in JACK VM
 					   language, and outputs the translation to HACK assembly to the output file.
 	*/
 	void writeArithmetic(string);
-	/*
-		Functionality: Receives a string, c, that contains a command in JACK VM language; a string,
-		s, that contains the virtual memory segment; and a an int, ind, that refers to the index
-		of the virtual memory segment to be accessed. And outputs the corresponding HACK assembly
-		code to the output file
-	*/
-	void writePushPop(string, string, int);
-	/*
-		Functionality: Receives a string with the current command, c, and writes the corresponding
-		               HACK assembly operation for that command.
-	*/
-	void writeArithmeticOp(string);
-	/*
-		Functionality: Writes the commands in the HACK assembly language to increment the stack
-		               pointer by one. This is done after any arithmetic operation to keep the 
-					   pointer in the right place.
-	*/
-	void writeUpdateStack();
+
 };
 
 int main(int argc, char* argv[])
 {
 	string inputFileName = argv[1];
-	string outputFileName = argv[2];
+	int firstDotPos = inputFileName.find(".");
+	string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
 	Parser parser(inputFileName);
 	CodeWriter writer(outputFileName);
 
@@ -155,18 +134,18 @@ int main(int argc, char* argv[])
 		bool thereIsCommand = (commandType != "");
 		if (thereIsCommand && commandTypeIsNotReturn)
 		{
-			bool commandIsArithmetic = (commandType == "C_ARITHMETIC");
-			bool commandIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
+			bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
+			bool commandTypeIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
 
 			string command = parser.getCurrentCommand();
-			if (commandIsArithmetic) writer.writeArithmetic(command);
-			//else if (commandIsPushPop)
+
+			if (commandTypeIsArithmetic) writer.writeArithmetic(command);
+			//else if (commandTypeIsPushPop)
 			//{
-			//	string command = parser.getCurrentCommand();
-			//	string segment = parser.getCurrentModifier();
+			//	string modifier = parser.getCurrentModifier();
 			//	int index = parser.getCurrentIndex();
 
-			//	writer.writePushPop(command, segment, index);
+			//	writer.writePushPop(command, modifier, index);
 			//}
 		}
 
@@ -393,6 +372,31 @@ int Parser::extractIndex(string cL)
 
 // CodeWriter class methods
 
+CodeWriter::CodeWriter(string fn)
+{
+	assemblyCode.open(fn);
+	 
+	assemblyCode << "@8" << 
+		         "           // Makes sure the preamble is not executed on first pass." << endl;
+	assemblyCode << "0;JMP" << endl;
+	assemblyCode << "(TRUE)" << 
+		            "       // Provides all the definitions for comparison instructions." << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "A=M-1" << endl;
+	assemblyCode << "M=-1" << endl;
+	assemblyCode << "@R13" << 
+		            "         // Holds the value of the instruction to which to jump." << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "0;JMP" << endl;
+
+	writtenInstructionsSoFar = 8;
+}
+
+CodeWriter::~CodeWriter()
+{
+	assemblyCode.close();
+}
+
 /*
 	Functionality: Receives a string, c, that contains an arithmetic command in JACK VM
 				   language, and outputs the translation to HACK assembly to the output file.
@@ -400,85 +404,105 @@ int Parser::extractIndex(string cL)
 */
 void CodeWriter::writeArithmetic(string c)
 {
-	writeArithmeticPop(c);        // Writes the popping of arguments from the stack
-	writeArithmeticOp(c);         // Writes the appropiate operations
-}
-
-/*
-		Functionality: Receives an arithmetic command and outputs the corresponding translation to
-					   the output file containing the code in HACK assembly language.
-*/
-void CodeWriter::writeArithmeticPop(string c)
-{
-	bool commandIsUnary(c == "neg" || c == "not");
-	if (commandIsUnary)
-	{
-		assemblyCode << "// Pops the first element from the stack" << endl;
-		assemblyCode << "@sp" << endl;
-		assemblyCode << "M=M-1" << endl;
-		assemblyCode << "A=M" << endl;
-	}
-	else
-	{
-		assemblyCode << "// Pops the first element from the stack" << endl;
-		assemblyCode << "@sp" << endl;
-		assemblyCode << "M=M-1" << endl;
-		assemblyCode << "A=M" << endl;
-		assemblyCode << "D=M" << endl; 
-
-		assemblyCode << "// Pops the second element from the stack" << endl; 
-		assemblyCode << "@sp" << endl;
-		assemblyCode << "M=M-1" << endl;
-		assemblyCode << "A=M" << endl;
-	}
-}
-/*
-	Functionality: Receives a string with the current command, c, writes the corresponding
-				   HACK assembly operation for that command and the corresponding update to the
-				   stack.
-*/
-void CodeWriter::writeArithmeticOp(string c)
-{
 	bool commandIsComparison = (c == "eq" || c == "lt" || c == "gt");
 	if (commandIsComparison)
 	{
-		/*
-			Functionality: Modifies commands for output purposes.
-		*/
+
+		// command in upper case
 		if (c == "eq") c = "EQ";
 		else if (c == "lt") c = "LT";
-		else c = "GT";
+		else  c = "GT";
 
-		assemblyCode << "// Sets up the comparison for jumping" << endl;
+		int instructionsInCOMPCommand = 14;
+		int addrOfNextInstIfEQTrue = writtenInstructionsSoFar + instructionsInCOMPCommand;
+
+		assemblyCode << "@" << addrOfNextInstIfEQTrue <<
+			" // value of next inst if EQ true" << endl;
+		assemblyCode << "D=A" << endl;
+		assemblyCode << "@R13" << endl;
+		assemblyCode << "M=D" << "       // Holds value of next inst if COMP T." << endl;
+		assemblyCode << "@SP" << "       // Proceeds to pop values off stack and compare." << endl;
+		assemblyCode << "AM=M-1" << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << endl;
 		assemblyCode << "D=M-D" << endl;
-		assemblyCode << "// Compares and executes accordingly" << endl;
-		assemblyCode << "@" << c << endl;
+		assemblyCode << "@TRUE" << endl;
 		assemblyCode << "D;J" << c << endl;
+		assemblyCode << "@SP" << "       // This parts executes only if COMP F." << endl;
+		assemblyCode << "A=M-1" << endl;
 		assemblyCode << "M=0" << endl;
-		writeUpdateStack();                    // writes the update to the pointer of the stack
-		assemblyCode << "(" << c << ")" << endl;
-		assemblyCode << "M=1" << endl;
-		writeUpdateStack();
+
+		writtenInstructionsSoFar += instructionsInCOMPCommand;
 	}
-	else
+
+	else if (c == "add")
 	{
-		if (c == "add") assemblyCode << "M=D+M" << endl;
-		else if (c == "sub") assemblyCode << "M=D-M" << endl;
-		else if (c == "neg") assemblyCode << "M=-M" << endl;
-		else if (c == "and") assemblyCode << "M=D&M" << endl;
-		else if (c == "or")  assemblyCode << "M=D|M" << endl;
-		else assemblyCode << "M=!M" << endl;
-		writeUpdateStack(); 
+		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
+		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
+		assemblyCode << "M=M+D" << "    // Stores result in pos of last popped item." << endl;
+		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "M=D" << endl;
+
+		writtenInstructionsSoFar += 8;
+	}
+	else if (c == "sub")
+	{
+		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
+		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
+		assemblyCode << "M=M-D" << "    // Stores result in pos of last popped item." << endl;
+		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "M=D" << endl;
+
+		writtenInstructionsSoFar += 8;
+	}
+	else if (c == "neg")
+	{
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "A=M-1" << "     // Access the first element in the stack." << endl;
+		assemblyCode << "M=-M" << "      // Negates the element arithmetically." << endl;
+
+		writtenInstructionsSoFar += 3;
+	}
+	else if (c == "and")
+	{
+		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
+		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
+		assemblyCode << "M=D&M" << "    // Stores result in pos of last popped item." << endl;
+		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "M=D" << endl;
+
+		writtenInstructionsSoFar += 8;
+	}
+	else if (c == "or")
+	{
+		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
+		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
+		assemblyCode << "M=D|M" << "    // Stores result in pos of last popped item." << endl;
+		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "M=D" << endl;
+
+		writtenInstructionsSoFar += 8;
+	}
+	else if (c == "not")
+	{
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "A=M-1" << "      // Access the first element in the stack." << endl;
+		assemblyCode << "M=!M" <<  "      // Negates the element bit-wise." << endl;
+
+		writtenInstructionsSoFar += 3;
 	}
 }
-/*
-		Functionality: Writes the commands in the HACK assembly language to increment the stack
-					   pointer by one. This is done after any arithmetic operation to keep the
-					   pointer in the right place.
-*/
-void CodeWriter::writeUpdateStack()
-{
-	assemblyCode << "@sp" << endl;
-	assemblyCode << "M=M+1" << endl;
-}
+
 
