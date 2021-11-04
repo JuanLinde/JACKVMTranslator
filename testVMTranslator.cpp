@@ -114,6 +114,7 @@ public:
 					   language, and outputs the translation to HACK assembly to the output file.
 	*/
 	void writeArithmetic(string);
+	void writePushPop(string, string, int);
 
 };
 
@@ -140,13 +141,13 @@ int main(int argc, char* argv[])
 			string command = parser.getCurrentCommand();
 
 			if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-			//else if (commandTypeIsPushPop)
-			//{
-			//	string modifier = parser.getCurrentModifier();
-			//	int index = parser.getCurrentIndex();
+			else if (commandTypeIsPushPop)
+			{
+				string modifier = parser.getCurrentModifier();
+				int index = parser.getCurrentIndex();
 
-			//	writer.writePushPop(command, modifier, index);
-			//}
+				writer.writePushPop(command, modifier, index);
+			}
 		}
 
 	}
@@ -504,5 +505,23 @@ void CodeWriter::writeArithmetic(string c)
 		writtenInstructionsSoFar += 3;
 	}
 }
+/*
+	Functionality: Receives a command, c, a modifier of that command, m, and the index and 
+	               pushes or pops the index to/from the stack.
+*/
+void CodeWriter::writePushPop(string c, string m, int i)
+{
+	if (m == "constant")
+	{
+		assemblyCode << "@" << i << "     // Stores the value to be pushed." << endl;
+		assemblyCode << "D=A" << endl;
+		assemblyCode << "@SP" << "        // Pushes value into the stack." << endl;
+		assemblyCode << "A=M" << endl;
+		assemblyCode << "M=D" << endl;
+		assemblyCode << "@SP" << "        // Updates the stack pointer." << endl;
+		assemblyCode << "M=M+1" << endl;
 
+		writtenInstructionsSoFar += 7;
+	}
+}
 
