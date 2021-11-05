@@ -375,7 +375,7 @@ CodeWriter::CodeWriter(string fn)
 	assemblyCode.open(fn);
 	 
 	assemblyCode << "// Makes sure the preamble is not executed on first pass." << endl;
-	assemblyCode << "@8" << endl;
+	assemblyCode << "@6" << endl;
 	assemblyCode << "0;JMP" << endl;
 	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
 	assemblyCode << "(TRUE)" << endl;
@@ -528,12 +528,18 @@ void CodeWriter::writePushPop(string c, string m, int i)
 
 		writtenInstructionsSoFar += 7;
 	}
-	else if (m == "local")
+	else if (m == "local" || m == "argument" || m == "this" || m == "that")
 	{
+		string predefLabel = "";
+		if (m == "local")         { predefLabel = "LCL"; m = "LOCAL"; }
+		else if (m == "argument") { predefLabel = "ARG", m = "ARGUMENT"; }
+		else if (m == "this")     { predefLabel = "THIS"; m = "THIS";}
+		else if (m == "that")     { predefLabel = "THAT"; m = "THAT";}
+
 		if (c == "pop")
 		{
 
-			assemblyCode << "// POP LOCAL " << i << endl;
+			assemblyCode << "// POP  " << m << " " << i << endl;
 			assemblyCode << "// Access last element in stack, stores it," << endl;
 			assemblyCode << "// and update pointer." << endl;
 			assemblyCode << "@SP"<< endl;
@@ -545,7 +551,7 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "// and stores it in R14 temporarily." << endl;
 			assemblyCode << "@" << i << endl;
 			assemblyCode << "D=A" << endl;
-			assemblyCode << "@LCL" << endl;
+			assemblyCode << "@" << predefLabel << endl;
 			assemblyCode << "D=M+D" << endl;
 			assemblyCode << "@R14" << endl;
 			assemblyCode << "M=D" << endl;
@@ -561,11 +567,11 @@ void CodeWriter::writePushPop(string c, string m, int i)
 		}
 		else
 		{
-			assemblyCode << "// PUSH LOCAL " << i << endl;
+			assemblyCode << "// PUSH " << m << " " << i << endl;
 			assemblyCode << "// Access address local + index and store it." << endl;
 			assemblyCode << "@" << i << endl;
 			assemblyCode << "D=A" << endl;
-			assemblyCode << "@LCL" << endl;
+			assemblyCode << "@" << predefLabel << endl;
 			assemblyCode << "A=M+D" << endl;
 			assemblyCode << "D=M" << endl;
 			assemblyCode << "// Access next available stack reg and insert stored val." << endl;
@@ -577,6 +583,39 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "M=M+1" << endl;
 
 			writtenInstructionsSoFar += 10;
+		}
+	}
+	else if (m == "temp")
+	{
+		int realIndex = 5 + i;       // Takes into account that temp registers start at R5.
+		if (c == "pop")
+		{
+			assemblyCode << "// POP TEMP " << i << endl;
+			assemblyCode << "// Pop element from stack." << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "AM=M-1" << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "// Store it in temp register." << endl;
+			assemblyCode << "@R" << realIndex << endl;
+			assemblyCode << "M=D" << endl;
+
+			writtenInstructionsSoFar += 5;
+
+		}
+		else
+		{
+			assemblyCode << "// PUSH TEMP " << i << endl;
+			assemblyCode << "// Store element in temp register." << endl;
+			assemblyCode << "@" << realIndex << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "// Push it into the stack and update pointer." << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "A=M" << endl;
+			assemblyCode << "M=D" << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "M=M+1" << endl;
+
+			writtenInstructionsSoFar += 7;
 		}
 	}
 }
