@@ -166,7 +166,6 @@ bool Parser::currentCommandHasModifier()
 	if (currCommandHasModifier) return true;
 	else return false;
 }
-
 Parser::Parser(string fileName)
 {
 	vmCode.open(fileName);
@@ -176,14 +175,12 @@ Parser::Parser(string fileName)
 	currentModifier = "";
 	currentIndex = -1;
 }
-
 bool Parser::hasMoreLines()
 {
 	bool hasMoreLines = (vmCode.eof() == false);
 	if (hasMoreLines) return true;
 	return false;
 }
-
 void Parser::advance()
 {
 	string currentLine;
@@ -377,27 +374,24 @@ CodeWriter::CodeWriter(string fn)
 {
 	assemblyCode.open(fn);
 	 
-	assemblyCode << "@8" << 
-		         "           // Makes sure the preamble is not executed on first pass." << endl;
+	assemblyCode << "// Makes sure the preamble is not executed on first pass." << endl;
+	assemblyCode << "@8" << endl;
 	assemblyCode << "0;JMP" << endl;
-	assemblyCode << "(TRUE)" << 
-		            "       // Provides all the definitions for comparison instructions." << endl;
-	assemblyCode << "@SP" << endl;
-	assemblyCode << "A=M-1" << endl;
+	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
+	assemblyCode << "(TRUE)" << endl;
 	assemblyCode << "M=-1" << endl;
-	assemblyCode << "@R13" << 
-		            "         // Holds the value of the instruction to which to jump." << endl;
+	assemblyCode << "// Holds the value of the instruction to which to jump" << endl;
+	assemblyCode << "// After label is finished running." << endl;
+	assemblyCode << "@R13" << endl;
 	assemblyCode << "A=M" << endl;
 	assemblyCode << "0;JMP" << endl;
 
-	writtenInstructionsSoFar = 8;
+	writtenInstructionsSoFar = 6;
 }
-
 CodeWriter::~CodeWriter()
 {
 	assemblyCode.close();
 }
-
 /*
 	Functionality: Receives a string, c, that contains an arithmetic command in JACK VM
 				   language, and outputs the translation to HACK assembly to the output file.
@@ -414,23 +408,26 @@ void CodeWriter::writeArithmetic(string c)
 		else if (c == "lt") c = "LT";
 		else  c = "GT";
 
-		int instructionsInCOMPCommand = 14;
+		int instructionsInCOMPCommand = 12;
 		int addrOfNextInstIfEQTrue = writtenInstructionsSoFar + instructionsInCOMPCommand;
 
-		assemblyCode << "@" << addrOfNextInstIfEQTrue <<
-			" // value of next inst if EQ true" << endl;
+		assemblyCode << "// " << c << endl;
+		assemblyCode << "// Stores the address of the next instruction" << endl;
+		assemblyCode << "// to which to jump if (TRUE) is entered." << endl;
+		assemblyCode << "@" << addrOfNextInstIfEQTrue << endl;
 		assemblyCode << "D=A" << endl;
 		assemblyCode << "@R13" << endl;
-		assemblyCode << "M=D" << "       // Holds value of next inst if COMP T." << endl;
-		assemblyCode << "@SP" << "       // Proceeds to pop values off stack and compare." << endl;
+		assemblyCode << "M=D" <<  endl;
+		assemblyCode << "// Pops both values off the stack and compares them" << endl;
+		assemblyCode << "// jumps to (TRUE) if comparison is true" << endl;
+		assemblyCode << "@SP" << endl;
 		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
 		assemblyCode << "A=A-1" << endl;
 		assemblyCode << "D=M-D" << endl;
 		assemblyCode << "@TRUE" << endl;
 		assemblyCode << "D;J" << c << endl;
-		assemblyCode << "@SP" << "       // This parts executes only if COMP F." << endl;
-		assemblyCode << "A=M-1" << endl;
+		assemblyCode << "// Sets the stack to False since comparison was false." << endl;
 		assemblyCode << "M=0" << endl;
 
 		writtenInstructionsSoFar += instructionsInCOMPCommand;
@@ -438,69 +435,74 @@ void CodeWriter::writeArithmetic(string c)
 
 	else if (c == "add")
 	{
-		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
-		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
-		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
-		assemblyCode << "M=M+D" << "    // Stores result in pos of last popped item." << endl;
-		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "// ADD" << endl;
+		assemblyCode << "// Accesses the two top elements of the stack" << endl;
+		assemblyCode << "// Adds them, stores the result in stack." << endl;
 		assemblyCode << "@SP" << endl;
-		assemblyCode << "M=D" << endl;
+		assemblyCode << "AM=M-1" << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" << endl;
+		assemblyCode << "M=M+D" << endl;
 
-		writtenInstructionsSoFar += 8;
+		writtenInstructionsSoFar += 5;
 	}
 	else if (c == "sub")
 	{
-		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
-		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "// SUB" << endl;
+		assemblyCode << "// Accesses the two top elements of the stack" << endl;
+		assemblyCode << "// subs them, stores the result in stack." << endl;
+		assemblyCode << "@SP" <<  endl;
+		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
-		assemblyCode << "M=M-D" << "    // Stores result in pos of last popped item." << endl;
-		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
-		assemblyCode << "@SP" << endl;
-		assemblyCode << "M=D" << endl;
+		assemblyCode << "A=A-1" << endl;
+		assemblyCode << "M=M-D" << endl;
 
-		writtenInstructionsSoFar += 8;
+		writtenInstructionsSoFar += 5;
 	}
 	else if (c == "neg")
 	{
+		assemblyCode << "// NEG" << endl;
+		assemblyCode << "// Access top element stack and negates it arithmetically." << endl;
 		assemblyCode << "@SP" << endl;
-		assemblyCode << "A=M-1" << "     // Access the first element in the stack." << endl;
-		assemblyCode << "M=-M" << "      // Negates the element arithmetically." << endl;
+		assemblyCode << "A=M-1" << endl;
+		assemblyCode << "M=-M" <<  endl;
 
 		writtenInstructionsSoFar += 3;
 	}
 	else if (c == "and")
 	{
-		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
-		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
+		assemblyCode << "// AND" << endl;
+		assemblyCode << "// Accesses the two top elements of the stack" << endl;
+		assemblyCode << "// Ands them, stores the result in stack." << endl;
+		assemblyCode << "@SP" <<  endl;
+		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
-		assemblyCode << "M=D&M" << "    // Stores result in pos of last popped item." << endl;
-		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
-		assemblyCode << "@SP" << endl;
-		assemblyCode << "M=D" << endl;
+		assemblyCode << "A=A-1" <<  endl;
+		assemblyCode << "M=D&M" <<  endl;
 
-		writtenInstructionsSoFar += 8;
+		writtenInstructionsSoFar += 5;
 	}
 	else if (c == "or")
 	{
-		assemblyCode << "@SP" << "      // Access the first element in the stack." << endl;
-		assemblyCode << "A=M-1" << "    // Stores the element for addition." << endl;
-		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" << "    // Access second element in the stack." << endl;
-		assemblyCode << "M=D|M" << "    // Stores result in pos of last popped item." << endl;
-		assemblyCode << "D=A+1" << "    // Updates sp and stores it in SP." << endl;
+		assemblyCode << "// OR" << endl;
+		assemblyCode << "// Accesses the two top elements of the stack" << endl;
+		assemblyCode << "// OR them, stores the result in stack." << endl;
 		assemblyCode << "@SP" << endl;
-		assemblyCode << "M=D" << endl;
+		assemblyCode << "AM=M-1" << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "A=A-1" <<  endl;
+		assemblyCode << "M=D|M" <<  endl;
 
-		writtenInstructionsSoFar += 8;
+
+		writtenInstructionsSoFar += 5;
 	}
 	else if (c == "not")
 	{
+		assemblyCode << "// NOT" << endl;
+		assemblyCode << "// Accesses top element in stack and NOTs it" << endl;
 		assemblyCode << "@SP" << endl;
-		assemblyCode << "A=M-1" << "      // Access the first element in the stack." << endl;
-		assemblyCode << "M=!M" <<  "      // Negates the element bit-wise." << endl;
+		assemblyCode << "A=M-1" << endl;
+		assemblyCode << "M=!M" << endl;
 
 		writtenInstructionsSoFar += 3;
 	}
@@ -513,15 +515,69 @@ void CodeWriter::writePushPop(string c, string m, int i)
 {
 	if (m == "constant")
 	{
-		assemblyCode << "@" << i << "     // Stores the value to be pushed." << endl;
+		assemblyCode << "// PUSH CONSTANT " << i  << endl;
+		assemblyCode << "// Stores value to be pushed." << endl;
+		assemblyCode << "@" << i << endl;
 		assemblyCode << "D=A" << endl;
-		assemblyCode << "@SP" << "        // Pushes value into the stack." << endl;
+		assemblyCode << "// Pushes value into the stack and updates pointers" << endl;
+		assemblyCode << "@SP"<< endl;
 		assemblyCode << "A=M" << endl;
 		assemblyCode << "M=D" << endl;
-		assemblyCode << "@SP" << "        // Updates the stack pointer." << endl;
+		assemblyCode << "@SP" << endl;
 		assemblyCode << "M=M+1" << endl;
 
 		writtenInstructionsSoFar += 7;
+	}
+	else if (m == "local")
+	{
+		if (c == "pop")
+		{
+
+			assemblyCode << "// POP LOCAL " << i << endl;
+			assemblyCode << "// Access last element in stack, stores it," << endl;
+			assemblyCode << "// and update pointer." << endl;
+			assemblyCode << "@SP"<< endl;
+			assemblyCode << "AM=M-1" << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "@R13" << endl;
+			assemblyCode << "M=D" << endl;
+			assemblyCode << "// Stores value of index, adds it to the Local base" << endl;
+			assemblyCode << "// and stores it in R14 temporarily." << endl;
+			assemblyCode << "@" << i << endl;
+			assemblyCode << "D=A" << endl;
+			assemblyCode << "@LCL" << endl;
+			assemblyCode << "D=M+D" << endl;
+			assemblyCode << "@R14" << endl;
+			assemblyCode << "M=D" << endl;
+			assemblyCode << "// Accesses stores Stack element, Local segment" << endl;
+			assemblyCode << "// register and stores element in it." << endl;
+			assemblyCode << "@R13"<< endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "@R14" << endl;
+			assemblyCode << "A=M" << endl;
+			assemblyCode << "M=D" << endl;
+
+			writtenInstructionsSoFar += 16;
+		}
+		else
+		{
+			assemblyCode << "// PUSH LOCAL " << i << endl;
+			assemblyCode << "// Access address local + index and store it." << endl;
+			assemblyCode << "@" << i << endl;
+			assemblyCode << "D=A" << endl;
+			assemblyCode << "@LCL" << endl;
+			assemblyCode << "A=M+D" << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "// Access next available stack reg and insert stored val." << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "A=M" << endl;
+			assemblyCode << "M=D" << endl;
+			assemblyCode << "// Update the stack pointer." << endl;
+			assemblyCode << "@SP"<< endl;
+			assemblyCode << "M=M+1" << endl;
+
+			writtenInstructionsSoFar += 10;
+		}
 	}
 }
 
