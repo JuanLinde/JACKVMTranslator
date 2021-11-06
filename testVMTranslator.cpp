@@ -585,12 +585,15 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			writtenInstructionsSoFar += 10;
 		}
 	}
-	else if (m == "temp")
+	else if (m == "temp" || m == "pointer")
 	{
-		int realIndex = 5 + i;       // Takes into account that temp registers start at R5.
+		int realIndex = 0;    // Takes into account that segments start at R3 or R5
+		if (m == "pointer") { m = "POINTER"; realIndex = 3 + i; }
+		else if (m == "temp") { m = "TEMP"; realIndex = 5 + i; }
+   
 		if (c == "pop")
 		{
-			assemblyCode << "// POP TEMP " << i << endl;
+			assemblyCode << "// POP " << m << " " <<  i << endl;
 			assemblyCode << "// Pop element from stack." << endl;
 			assemblyCode << "@SP" << endl;
 			assemblyCode << "AM=M-1" << endl;
@@ -604,8 +607,8 @@ void CodeWriter::writePushPop(string c, string m, int i)
 		}
 		else
 		{
-			assemblyCode << "// PUSH TEMP " << i << endl;
-			assemblyCode << "// Store element in temp register." << endl;
+			assemblyCode << "// POP " << m << " " << i << endl;
+			assemblyCode << "// Store element in register." << endl;
 			assemblyCode << "@" << realIndex << endl;
 			assemblyCode << "D=M" << endl;
 			assemblyCode << "// Push it into the stack and update pointer." << endl;
