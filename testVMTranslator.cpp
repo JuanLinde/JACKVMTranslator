@@ -1,6 +1,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <set>
+#include <dirent.h>
+#include <windows.h>
 using namespace std;
 
 /*
@@ -27,16 +30,16 @@ private:
 	void removeWhitespaceFrom(string&);
 	/*
 		Functionality: Receives the current line being traversed, cL, and extracts and returns the
-		               command in a string.
+					   command in a string.
 	*/
 	string extractCommandFrom(string);
 	/*
-		Functionality: Receives a string that contains the current line being traversed, cL, and 
-		               extracts and returns the current command type from it. This function assumes 
-					   that whitespaces have been removed from the current line and that it 
+		Functionality: Receives a string that contains the current line being traversed, cL, and
+					   extracts and returns the current command type from it. This function assumes
+					   that whitespaces have been removed from the current line and that it
 					   contains an instruction in JACK VM.
 
-	
+
 
 		Return types:
 					   C_ARITHMETIC - All arithmetic commands
@@ -52,25 +55,25 @@ private:
 	string extractCommandTypeFrom(string);
 	/*
 		Functionality: Receives the command type of the current instruction, cT, and returns true
-		               or false depending upon the syntax of the command type.
+					   or false depending upon the syntax of the command type.
 
 	*/
 	bool currentCommandHasModifier();
 	/*
 		Functionality: Access the current command and extracts the modifier from it. It assumes the
-		               program has checked if the command contains a modifier.
+					   program has checked if the command contains a modifier.
 	*/
 	string extractModifier(string);
 	/*
 		Functionality: Receives the current line, cL, and determines if there is an index to be
-		               extracted from it. It supposes the current line contains a valid instruct.
+					   extracted from it. It supposes the current line contains a valid instruct.
 	*/
 	bool currentInstructionHasIndex();
 	/*
 		Functionality: Receives the current line, cL, and extracts the index from it. It assumes
-		               the current line has a valid instruction and contains an index.
+					   the current line has a valid instruction and contains an index.
 	*/
-	int extractIndex(string); 
+	int extractIndex(string);
 
 public:
 	Parser(string fileName);
@@ -102,7 +105,9 @@ public:
 class CodeWriter
 {
 private:
+	string fileWOExtension;
 	ofstream assemblyCode;
+
 
 public:
 	CodeWriter(string fileName);
@@ -117,41 +122,176 @@ public:
 	void writePushPop(string, string, int);
 
 };
+/*
+	What it does:
+	    Assumptions:
+		    1. Command argument is a folder
+		Inputs:
+		    1. A string containing the name of the folder
+		Output:
+		    1. A string with the path to the folder to traverse
+*/
+string getPath(string);
+/*
+	What it does:
+
+	Assumptions:
+	               1. There is a folder to traverse for files with VM code
+	Inputs:
+	               1. A string containing each item inside the folder being traversed
+	Output:
+	               1. True if the current file being traversed is a VM file. Otherwise, false.
+*/
+bool fileIsVMFile(string);
 
 int main(int argc, char* argv[])
 {
-	string inputFileName = argv[1];
-	int firstDotPos = inputFileName.find(".");
-	string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
-	Parser parser(inputFileName);
-	CodeWriter writer(outputFileName);
 
-	while (parser.hasMoreLines())
+	string input = argv[1];
+	bool inputIsDir = (input.find(".") == string::npos);
+
+
+	if (inputIsDir)
 	{
-		parser.advance();
-		string commandType = parser.getCurrentCommandType();
-
-		bool commandTypeIsNotReturn = (commandType != "C_RETURN");
-		bool thereIsCommand = (commandType != "");
-		if (thereIsCommand && commandTypeIsNotReturn)
+		string path = getPath(input);
+		const char* pathPointer = path.c_str();
+		/*
+			Creates a structure an pointer to handle
+			traversal of file in folder
+		*/
+		struct dirent* entry = nullptr;
+		DIR* dirPointer = nullptr;
+		dirPointer = opendir(pathPointer);
+		/*
+			Iterates through each file translating it.
+		*/
+		if (dirPointer != nullptr)
 		{
-			bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
-			bool commandTypeIsPushPop = (commandType == "C_PUSH" || commandType == "C_POP");
-
-			string command = parser.getCurrentCommand();
-
-			if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-			else if (commandTypeIsPushPop)
+			while (entry = readdir(dirPointer))
 			{
-				string modifier = parser.getCurrentModifier();
-				int index = parser.getCurrentIndex();
-
-				writer.writePushPop(command, modifier, index);
+				string inputFileName = entry->d_name;
+				if (fileIsVMFile(inputFileName))
+				{
+					cout << inputFileName << endl;
+				}
+				else
+				{
+					cout << inputFileName << " is not VM." << endl;
+				}
 			}
 		}
+	}
+	// Input is file
+	else
+	{
+		if (fileIsVMFile(input))
+		{
 
+			cout << input << endl;
+
+			//string inputFileName = argv[1];
+			//int firstDotPos = inputFileName.find(".");
+			//string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
+			//Parser parser(inputFileName);
+			//CodeWriter writer(outputFileName);
+
+			//while (parser.hasMoreLines())
+			//{
+			//	parser.advance();
+			//	string commandType = parser.getCurrentCommandType();
+
+			//	bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+			//	bool thereIsCommand = (commandType != "");
+			//	if (thereIsCommand && commandTypeIsNotReturn)
+			//	{
+			//		bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
+			//		bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
+			//			                         commandType == "C_POP");
+
+			//		string command = parser.getCurrentCommand();
+
+			//		if (commandTypeIsArithmetic) writer.writeArithmetic(command);
+			//		else if (commandTypeIsPushPop)
+			//		{
+			//			string modifier = parser.getCurrentModifier();
+			//			int index = parser.getCurrentIndex();
+
+			//			writer.writePushPop(command, modifier, index);
+			//		}
+			//	}
+			//}
+		}
+		else
+		{
+			cout << input << " is not VM" << endl;
+		}
 	}
 	return 0;
+}
+
+// Main function methods
+/*
+	What it does:
+
+		Assumptions:
+			1. Command argument is a folder
+		Inputs:
+			1. A string containing the name of the folder
+		Output:
+			1. A string with the path to the folder to traverse
+
+	How it does it: 
+
+	1. Creates an array
+	2. Gets the current directory and puts it into the array
+	3. Iterates through the array creating a string with the path
+	4. Adds the folder to search to the path
+	5. Returns the path
+*/
+string getPath(string folderName)
+{
+	TCHAR buffer[MAX_PATH];
+	DWORD bufferLength = GetCurrentDirectory(MAX_PATH, buffer);
+	string path = "";
+	for (int index = 0; index < bufferLength; index++)
+	{
+		char currChar = buffer[index];
+		path += currChar;
+	}
+	string folderToSearch(folderName);
+	path += "\\" + folderToSearch;
+	return path;
+}
+/*
+	What it does:
+
+		Assumptions:
+					   1. There is a folder to traverse for files with VM code
+		Inputs:
+					   1. A string containing each item inside the folder being traversed
+		Output:
+					   1. True if the current file being traversed is a VM file. Otherwise, false.
+	How it does it:
+
+		1. Find the position of the dot
+		2. If there is a dot:
+		3.   Get the extension of the file
+		4.   If it is a vm extension return true
+		5.   else return false
+		6. else return false
+*/
+bool fileIsVMFile(string file)
+{
+	size_t firstDotPos = file.find(".");
+	bool fileHasExtension = (firstDotPos != string::npos);
+
+	if (fileHasExtension)
+	{
+		string extension = file.substr(firstDotPos + 1);
+		if (extension == "vm") return true;
+		else return false;
+	}
+	else return false;
 }
 
 // Parser class methods
@@ -201,7 +341,7 @@ void Parser::advance()
 
 		if (currentInstructionHasIndex())
 		{
-			currentIndex = extractIndex(currentInstruction); 
+			currentIndex = extractIndex(currentInstruction);
 		}
 		else currentIndex = -1;
 	}
@@ -276,11 +416,11 @@ string Parser::extractCommandFrom(string cL)
 }
 /*
 	Functionality: Determines if the current line being traversed contains an instruction. If
-				   it does, returns true. This should be called after whitespaces have been 
+				   it does, returns true. This should be called after whitespaces have been
 				   removed from the current line.
 
 	Algorithm:
-	
+
 	1. If current line is empty return false
 	2. Else if current line is a comment return false
 	3. Else return true
@@ -315,14 +455,14 @@ string Parser::extractCommandTypeFrom(string command)
 
 
 	bool commandIsArithmetic = (command == "add" ||
-								command == "sub" ||
-								command == "gt"  ||
-								command == "lt"  ||
-								command == "eq"  ||
-								command == "neg" ||
-								command == "and" ||
-								command == "or"  ||
-								command == "not");
+		command == "sub" ||
+		command == "gt" ||
+		command == "lt" ||
+		command == "eq" ||
+		command == "neg" ||
+		command == "and" ||
+		command == "or" ||
+		command == "not");
 
 	bool commandIsPush = (command == "push");
 	bool commandIsPop = (command == "pop");
@@ -340,7 +480,7 @@ string Parser::extractCommandTypeFrom(string command)
 string Parser::extractModifier(string cL)
 {
 	size_t firstSpacePos = cL.find_first_of(" ");
-	size_t secondSpacePos = cL.find(" ", firstSpacePos+1);
+	size_t secondSpacePos = cL.find(" ", firstSpacePos + 1);
 	string modifier = cL.substr(firstSpacePos + 1, secondSpacePos - firstSpacePos - 1);
 	return modifier;
 }
@@ -351,7 +491,7 @@ string Parser::extractModifier(string cL)
 bool Parser::currentInstructionHasIndex()
 {
 	bool currInstHasIndex = (currentCommandType == "C_PUSH" || currentCommandType == "C_POP" ||
-							 currentCommand == "C_FUNCTION");
+		currentCommand == "C_FUNCTION");
 
 	if (currInstHasIndex) return true;
 	else return false;
@@ -372,13 +512,17 @@ int Parser::extractIndex(string cL)
 
 CodeWriter::CodeWriter(string fn)
 {
+	fileWOExtension = fn.substr(0, fn.find("."));
 	assemblyCode.open(fn);
-	 
+
 	assemblyCode << "// Makes sure the preamble is not executed on first pass." << endl;
-	assemblyCode << "@6" << endl;
+	assemblyCode << "@8" << endl;
 	assemblyCode << "0;JMP" << endl;
 	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
 	assemblyCode << "(TRUE)" << endl;
+	assemblyCode << "// Makes sure the value is placed in righ register" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "A=M-1" << endl;
 	assemblyCode << "M=-1" << endl;
 	assemblyCode << "// Holds the value of the instruction to which to jump" << endl;
 	assemblyCode << "// After label is finished running." << endl;
@@ -386,7 +530,7 @@ CodeWriter::CodeWriter(string fn)
 	assemblyCode << "A=M" << endl;
 	assemblyCode << "0;JMP" << endl;
 
-	writtenInstructionsSoFar = 6;
+	writtenInstructionsSoFar = 8;
 }
 CodeWriter::~CodeWriter()
 {
@@ -408,7 +552,7 @@ void CodeWriter::writeArithmetic(string c)
 		else if (c == "lt") c = "LT";
 		else  c = "GT";
 
-		int instructionsInCOMPCommand = 12;
+		int instructionsInCOMPCommand = 14;
 		int addrOfNextInstIfEQTrue = writtenInstructionsSoFar + instructionsInCOMPCommand;
 
 		assemblyCode << "// " << c << endl;
@@ -417,7 +561,7 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "@" << addrOfNextInstIfEQTrue << endl;
 		assemblyCode << "D=A" << endl;
 		assemblyCode << "@R13" << endl;
-		assemblyCode << "M=D" <<  endl;
+		assemblyCode << "M=D" << endl;
 		assemblyCode << "// Pops both values off the stack and compares them" << endl;
 		assemblyCode << "// jumps to (TRUE) if comparison is true" << endl;
 		assemblyCode << "@SP" << endl;
@@ -428,6 +572,8 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "@TRUE" << endl;
 		assemblyCode << "D;J" << c << endl;
 		assemblyCode << "// Sets the stack to False since comparison was false." << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "A=M-1" << endl;
 		assemblyCode << "M=0" << endl;
 
 		writtenInstructionsSoFar += instructionsInCOMPCommand;
@@ -451,7 +597,7 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "// SUB" << endl;
 		assemblyCode << "// Accesses the two top elements of the stack" << endl;
 		assemblyCode << "// subs them, stores the result in stack." << endl;
-		assemblyCode << "@SP" <<  endl;
+		assemblyCode << "@SP" << endl;
 		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
 		assemblyCode << "A=A-1" << endl;
@@ -465,7 +611,7 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "// Access top element stack and negates it arithmetically." << endl;
 		assemblyCode << "@SP" << endl;
 		assemblyCode << "A=M-1" << endl;
-		assemblyCode << "M=-M" <<  endl;
+		assemblyCode << "M=-M" << endl;
 
 		writtenInstructionsSoFar += 3;
 	}
@@ -474,11 +620,11 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "// AND" << endl;
 		assemblyCode << "// Accesses the two top elements of the stack" << endl;
 		assemblyCode << "// Ands them, stores the result in stack." << endl;
-		assemblyCode << "@SP" <<  endl;
+		assemblyCode << "@SP" << endl;
 		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" <<  endl;
-		assemblyCode << "M=D&M" <<  endl;
+		assemblyCode << "A=A-1" << endl;
+		assemblyCode << "M=D&M" << endl;
 
 		writtenInstructionsSoFar += 5;
 	}
@@ -490,8 +636,8 @@ void CodeWriter::writeArithmetic(string c)
 		assemblyCode << "@SP" << endl;
 		assemblyCode << "AM=M-1" << endl;
 		assemblyCode << "D=M" << endl;
-		assemblyCode << "A=A-1" <<  endl;
-		assemblyCode << "M=D|M" <<  endl;
+		assemblyCode << "A=A-1" << endl;
+		assemblyCode << "M=D|M" << endl;
 
 
 		writtenInstructionsSoFar += 5;
@@ -508,19 +654,19 @@ void CodeWriter::writeArithmetic(string c)
 	}
 }
 /*
-	Functionality: Receives a command, c, a modifier of that command, m, and the index and 
-	               pushes or pops the index to/from the stack.
+	Functionality: Receives a command, c, a modifier of that command, m, and the index and
+				   pushes or pops the index to/from the stack.
 */
 void CodeWriter::writePushPop(string c, string m, int i)
 {
 	if (m == "constant")
 	{
-		assemblyCode << "// PUSH CONSTANT " << i  << endl;
+		assemblyCode << "// PUSH CONSTANT " << i << endl;
 		assemblyCode << "// Stores value to be pushed." << endl;
 		assemblyCode << "@" << i << endl;
 		assemblyCode << "D=A" << endl;
 		assemblyCode << "// Pushes value into the stack and updates pointers" << endl;
-		assemblyCode << "@SP"<< endl;
+		assemblyCode << "@SP" << endl;
 		assemblyCode << "A=M" << endl;
 		assemblyCode << "M=D" << endl;
 		assemblyCode << "@SP" << endl;
@@ -531,10 +677,10 @@ void CodeWriter::writePushPop(string c, string m, int i)
 	else if (m == "local" || m == "argument" || m == "this" || m == "that")
 	{
 		string predefLabel = "";
-		if (m == "local")         { predefLabel = "LCL"; m = "LOCAL"; }
+		if (m == "local") { predefLabel = "LCL"; m = "LOCAL"; }
 		else if (m == "argument") { predefLabel = "ARG", m = "ARGUMENT"; }
-		else if (m == "this")     { predefLabel = "THIS"; m = "THIS";}
-		else if (m == "that")     { predefLabel = "THAT"; m = "THAT";}
+		else if (m == "this") { predefLabel = "THIS"; m = "THIS"; }
+		else if (m == "that") { predefLabel = "THAT"; m = "THAT"; }
 
 		if (c == "pop")
 		{
@@ -542,7 +688,7 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "// POP  " << m << " " << i << endl;
 			assemblyCode << "// Access last element in stack, stores it," << endl;
 			assemblyCode << "// and update pointer." << endl;
-			assemblyCode << "@SP"<< endl;
+			assemblyCode << "@SP" << endl;
 			assemblyCode << "AM=M-1" << endl;
 			assemblyCode << "D=M" << endl;
 			assemblyCode << "@R13" << endl;
@@ -557,7 +703,7 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "M=D" << endl;
 			assemblyCode << "// Accesses stores Stack element, Local segment" << endl;
 			assemblyCode << "// register and stores element in it." << endl;
-			assemblyCode << "@R13"<< endl;
+			assemblyCode << "@R13" << endl;
 			assemblyCode << "D=M" << endl;
 			assemblyCode << "@R14" << endl;
 			assemblyCode << "A=M" << endl;
@@ -579,7 +725,7 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "A=M" << endl;
 			assemblyCode << "M=D" << endl;
 			assemblyCode << "// Update the stack pointer." << endl;
-			assemblyCode << "@SP"<< endl;
+			assemblyCode << "@SP" << endl;
 			assemblyCode << "M=M+1" << endl;
 
 			writtenInstructionsSoFar += 10;
@@ -590,10 +736,10 @@ void CodeWriter::writePushPop(string c, string m, int i)
 		int realIndex = 0;    // Takes into account that segments start at R3 or R5
 		if (m == "pointer") { m = "POINTER"; realIndex = 3 + i; }
 		else if (m == "temp") { m = "TEMP"; realIndex = 5 + i; }
-   
+
 		if (c == "pop")
 		{
-			assemblyCode << "// POP " << m << " " <<  i << endl;
+			assemblyCode << "// POP " << m << " " << i << endl;
 			assemblyCode << "// Pop element from stack." << endl;
 			assemblyCode << "@SP" << endl;
 			assemblyCode << "AM=M-1" << endl;
@@ -612,6 +758,38 @@ void CodeWriter::writePushPop(string c, string m, int i)
 			assemblyCode << "@" << realIndex << endl;
 			assemblyCode << "D=M" << endl;
 			assemblyCode << "// Push it into the stack and update pointer." << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "A=M" << endl;
+			assemblyCode << "M=D" << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "M=M+1" << endl;
+
+			writtenInstructionsSoFar += 7;
+		}
+	}
+	else
+	{
+		if (c == "pop")
+		{
+			assemblyCode << "// POP STATIC " << i << endl;
+			assemblyCode << "// Access last element in stack, stores it," << endl;
+			assemblyCode << "// and update pointer." << endl;
+			assemblyCode << "@SP" << endl;
+			assemblyCode << "AM=M-1" << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "// Store element in correct static place." << endl;
+			assemblyCode << "@" << fileWOExtension << "." << i << endl;
+			assemblyCode << "M=D" << endl;
+
+			writtenInstructionsSoFar += 5;
+		}
+		else
+		{
+			assemblyCode << "// PUSH STATIC " << i << endl;
+			assemblyCode << "// Access static element to push and store it." << endl;
+			assemblyCode << "@" << fileWOExtension << "." << i << endl;
+			assemblyCode << "D=M" << endl;
+			assemblyCode << "// Store in stack and update pointer." << endl;
 			assemblyCode << "@SP" << endl;
 			assemblyCode << "A=M" << endl;
 			assemblyCode << "M=D" << endl;
