@@ -4,6 +4,7 @@
 #include <set>
 #include <dirent.h>
 #include <windows.h>
+#include <iomanip>
 using namespace std;
 
 /*
@@ -147,86 +148,94 @@ bool fileIsVMFile(string);
 int main(int argc, char* argv[])
 {
 
+	// Logic for testing
+
 	string input = argv[1];
-	bool inputIsDir = (input.find(".") == string::npos);
+	Parser parser(input);
 
-
-	if (inputIsDir)
+	while (parser.hasMoreLines())
 	{
-		string path = getPath(input);
-		const char* pathPointer = path.c_str();
-		/*
-			Creates a structure an pointer to handle
-			traversal of file in folder
-		*/
-		struct dirent* entry = nullptr;
-		DIR* dirPointer = nullptr;
-		dirPointer = opendir(pathPointer);
-		/*
-			Iterates through each file translating it.
-		*/
-		if (dirPointer != nullptr)
-		{
-			while (entry = readdir(dirPointer))
-			{
-				string inputFileName = entry->d_name;
-				if (fileIsVMFile(inputFileName))
-				{
-					cout << inputFileName << endl;
-				}
-				else
-				{
-					cout << inputFileName << " is not VM." << endl;
-				}
-			}
-		}
+		parser.advance();
+		cout << left << setw(8) << parser.getCurrentCommand() << " --> " << 
+			 parser.getCurrentCommandType() << endl;
 	}
-	// Input is file
-	else
-	{
-		if (fileIsVMFile(input))
-		{
 
-			cout << input << endl;
 
-			//string inputFileName = argv[1];
-			//int firstDotPos = inputFileName.find(".");
-			//string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
-			//Parser parser(inputFileName);
-			//CodeWriter writer(outputFileName);
+	// Main Logic for the end
 
-			//while (parser.hasMoreLines())
-			//{
-			//	parser.advance();
-			//	string commandType = parser.getCurrentCommandType();
+	//string input = argv[1];
+	//bool inputIsDir = (input.find(".") == string::npos);
 
-			//	bool commandTypeIsNotReturn = (commandType != "C_RETURN");
-			//	bool thereIsCommand = (commandType != "");
-			//	if (thereIsCommand && commandTypeIsNotReturn)
-			//	{
-			//		bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
-			//		bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
-			//			                         commandType == "C_POP");
 
-			//		string command = parser.getCurrentCommand();
+	//if (inputIsDir)
+	//{
+	//	string path = getPath(input);
+	//	const char* pathPointer = path.c_str();
+	//	/*
+	//		Creates a structure an pointer to handle
+	//		traversal of file in folder
+	//	*/
+	//	struct dirent* entry = nullptr;
+	//	DIR* dirPointer = nullptr;
+	//	dirPointer = opendir(pathPointer);
+	//	/*
+	//		Iterates through each file translating it.
+	//	*/
+	//	if (dirPointer != nullptr)
+	//	{
+	//		while (entry = readdir(dirPointer))
+	//		{
+	//			string inputFileName = entry->d_name;
+	//			if (fileIsVMFile(inputFileName))
+	//			{
+	//				cout << inputFileName << endl;
+	//			}
+	//			else
+	//			{
+	//				cout << inputFileName << " is not VM." << endl;
+	//			}
+	//		}
+	//	}
+	//}
+	//// Input is file
+	//else
+	//{
+	//	if (fileIsVMFile(input))
+	//	{
+	//		string inputFileName = input; 
+	//		int firstDotPos = inputFileName.find(".");
+	//		string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
+	//		Parser parser(inputFileName);
+	//		CodeWriter writer(outputFileName);
 
-			//		if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-			//		else if (commandTypeIsPushPop)
-			//		{
-			//			string modifier = parser.getCurrentModifier();
-			//			int index = parser.getCurrentIndex();
+	//		while (parser.hasMoreLines())
+	//		{
+	//			parser.advance();
+	//			string commandType = parser.getCurrentCommandType();
 
-			//			writer.writePushPop(command, modifier, index);
-			//		}
-			//	}
-			//}
-		}
-		else
-		{
-			cout << input << " is not VM" << endl;
-		}
-	}
-	return 0;
+	//			bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+	//			bool thereIsCommand = (commandType != "");
+	//			if (thereIsCommand && commandTypeIsNotReturn)
+	//			{
+	//				bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
+	//				bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
+	//					                         commandType == "C_POP");
+
+	//				string command = parser.getCurrentCommand();
+
+	//				if (commandTypeIsArithmetic) writer.writeArithmetic(command);
+	//				else if (commandTypeIsPushPop)
+	//				{
+	//					string modifier = parser.getCurrentModifier();
+	//					int index = parser.getCurrentIndex();
+
+	//					writer.writePushPop(command, modifier, index);
+	//				}
+	//			}
+	//		}
+	//	}
+	//}
+	//return 0;
 }
 
 // Main function methods
@@ -466,11 +475,22 @@ string Parser::extractCommandTypeFrom(string command)
 
 	bool commandIsPush = (command == "push");
 	bool commandIsPop = (command == "pop");
+	bool commandIsLabel = (command == "label");
+	bool commandIsGOTO = (command == "goto");
+	bool commandIsIFGOTO = (command == "if-goto");
+	bool commandIsFunction = (command == "function");
+	bool commandIsCall = (command == "call");
+	bool commandIsReturn = (command == "return");
 
 	if (commandIsArithmetic) return "C_ARITHMETIC";
 	else if (commandIsPush) return "C_PUSH";
 	else if (commandIsPop) return "C_POP";
-	else return "not implemented yet";
+	else if (commandIsLabel) return "C_LABEL";
+	else if (commandIsGOTO) return "C_GOTO";
+	else if (commandIsIFGOTO) return "C_IF";
+	else if (commandIsFunction) return "C_FUNCTION";
+	else if (commandIsCall) return "C_CALL";
+	else if (commandIsReturn) return "C_RETURN";
 
 }
 /*
