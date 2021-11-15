@@ -151,6 +151,19 @@ public:
 		Inputs:       1. A string, l, containing the label to be output to the assembly file.
 	*/
 	void writeLabel(string);
+	/*
+		What it does: Writes HACK assembly code that effects the JACK VM "goto" command.
+
+		Assumptions:
+		1. The label is always within some function.
+		2. The passed label contains no mistakes.
+		3. The compiler takes care of returning to the correct instruction after the jump.
+
+		Inputs:
+		1. A string, l, containing the label to which to jump.
+
+	*/
+	void writeGOTO(string);
 };
 /*
 	What it does:
@@ -223,6 +236,7 @@ int main(int argc, char* argv[])
 							bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
 								commandType == "C_POP");
 							bool commandIsLabel = (commandType == "C_LABEL");
+							bool commandIsGOTO = (commandType == "C_GOTO");
 
 							string command = parser.getCurrentCommand();
 
@@ -236,8 +250,13 @@ int main(int argc, char* argv[])
 							}
 							else if (commandIsLabel)
 							{
-								string modifier = parser.getCurrentModifier();
-								writer.writeLabel(modifier);
+								string label = parser.getCurrentModifier();
+								writer.writeLabel(label);
+							}
+							else if (commandIsGOTO)
+							{
+								string label = parser.getCurrentModifier();
+								writer.writeGOTO(label);
 							}
 						}
 					}
@@ -268,6 +287,8 @@ int main(int argc, char* argv[])
 					bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
 					bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
 						                         commandType == "C_POP");
+					bool commandIsLabel = (commandType == "C_LABEL");
+					bool commandIsGOTO = (commandType == "C_GOTO");
 
 					string command = parser.getCurrentCommand();
 
@@ -278,6 +299,16 @@ int main(int argc, char* argv[])
 						int index = parser.getCurrentIndex();
 
 						writer.writePushPop(command, modifier, index);
+					}
+					else if (commandIsLabel)
+					{
+						string modifier = parser.getCurrentModifier();
+						writer.writeLabel(modifier);
+					}
+					else if (commandIsGOTO)
+					{
+						string label = parser.getCurrentModifier();
+						writer.writeGOTO(label);
 					}
 				}
 			}
@@ -943,5 +974,31 @@ void CodeWriter::writeLabel(string l)
 	string label = "(" + currFunction + "$" + l + ")";
 	assemblyCode << label << endl;
 	writtenInstructionsSoFar += 1;
+}
+/*
+	What it does: Writes HACK assembly code that effects the JACK VM "goto" command.
+	
+	Assumptions: 
+	1. The label is always within some function.
+	2. The passed label contains no mistakes.
+	3. The compiler takes care of returning to the correct instruction after the jump.
+					
+	Inputs: 
+	1. A string, l, containing the label to which to jump.
+
+	How it works: 
+	1. Gets the name of the function to which the label belongs.
+	2. Construct the label following language specifications.
+	3. Writes the assembly instructions.
+	4. Updates the written instructions counter.
+*/
+void CodeWriter::writeGOTO(string l)
+{
+	string currFunct = functionTracker.top();
+	string label = currFunct + "$" + l;
+	assemblyCode << "// Unconditional jump to (" << label << ")" << endl;
+	assemblyCode << "@" << label << endl;
+	assemblyCode << "0;JMP" << endl;
+	writtenInstructionsSoFar += 2;
 }
 
