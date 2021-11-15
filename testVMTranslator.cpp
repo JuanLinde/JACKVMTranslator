@@ -106,22 +106,37 @@ public:
 class CodeWriter
 {
 private:
+	string outputFileName;
 	string fileWOExtension;
 	ofstream assemblyCode;
-
-
-public:
-	CodeWriter(string fileName);
-	~CodeWriter();
 	int writtenInstructionsSoFar;
-
+public:
+	~CodeWriter();
 	/*
 		Functionality: Receives a string, c, that contains an arithmetic command in JACK VM
 					   language, and outputs the translation to HACK assembly to the output file.
 	*/
 	void writeArithmetic(string);
 	void writePushPop(string, string, int);
+	/*
+		What it does: Writes the needed preamble for every translated file. It sets up the stack
+		              pointer to 256, calls the sys.init() function of the operating system, and 
+					  writes the code for the all the comparisons in the program.
+	*/
+	void writeInit();
+	/*
+		What it does: It handles the initializing of variables and writing of the bootstrap code
+		              The functionality depends on the number files that have been translated when 
+					  it is called.
 
+	    Assumptions: 1. This is only called when the driver is dealing with a folder with
+			            multiple VM files.
+				     2. The file counter is never less than zero
+
+	    Inputs:      1. A string containing the input file name
+			         2. An int that indicates how many files have been translated thus far.
+	*/
+	void initialize(string, int);
 };
 /*
 	What it does:
@@ -148,94 +163,107 @@ bool fileIsVMFile(string);
 int main(int argc, char* argv[])
 {
 
-	// Logic for testing
-
-	string input = argv[1];
-	Parser parser(input);
-
-	while (parser.hasMoreLines())
-	{
-		parser.advance();
-		cout << left << setw(8) << parser.getCurrentCommand() << " --> " << 
-			 parser.getCurrentCommandType() << endl;
-	}
-
-
 	// Main Logic for the end
 
-	//string input = argv[1];
-	//bool inputIsDir = (input.find(".") == string::npos);
+	string input = argv[1];
+	bool inputIsDir = (input.find(".") == string::npos);
+	int VMfileCounter = 0;
 
 
-	//if (inputIsDir)
-	//{
-	//	string path = getPath(input);
-	//	const char* pathPointer = path.c_str();
-	//	/*
-	//		Creates a structure an pointer to handle
-	//		traversal of file in folder
-	//	*/
-	//	struct dirent* entry = nullptr;
-	//	DIR* dirPointer = nullptr;
-	//	dirPointer = opendir(pathPointer);
-	//	/*
-	//		Iterates through each file translating it.
-	//	*/
-	//	if (dirPointer != nullptr)
-	//	{
-	//		while (entry = readdir(dirPointer))
-	//		{
-	//			string inputFileName = entry->d_name;
-	//			if (fileIsVMFile(inputFileName))
-	//			{
-	//				cout << inputFileName << endl;
-	//			}
-	//			else
-	//			{
-	//				cout << inputFileName << " is not VM." << endl;
-	//			}
-	//		}
-	//	}
-	//}
-	//// Input is file
-	//else
-	//{
-	//	if (fileIsVMFile(input))
-	//	{
-	//		string inputFileName = input; 
-	//		int firstDotPos = inputFileName.find(".");
-	//		string outputFileName = inputFileName.substr(0, firstDotPos) + ".asm";
-	//		Parser parser(inputFileName);
-	//		CodeWriter writer(outputFileName);
+	if (inputIsDir)
+	{
+		string path = getPath(input);
+		const char* pathPointer = path.c_str();
+		/*
+			Creates a structure an pointer to handle
+			traversal of file in folder
+		*/
+		struct dirent* entry = nullptr;
+		DIR* dirPointer = nullptr;
+		dirPointer = opendir(pathPointer);
+		/*
+			Iterates through each file translating it.
+		*/
+		if (dirPointer != nullptr)
+		{
+			CodeWriter writer;
+			while (entry = readdir(dirPointer))
+			{
+				string inputFileName = entry->d_name;
+				if (fileIsVMFile(inputFileName))
+				{
+					cout << "Now Translating: " << inputFileName << endl;
+					string currPath = path + "\\" + inputFileName;
+					Parser parser(currPath);
+					writer.initialize(inputFileName, VMfileCounter);
+					while (parser.hasMoreLines())
+					{
+						parser.advance();
+						string commandType = parser.getCurrentCommandType();
 
-	//		while (parser.hasMoreLines())
-	//		{
-	//			parser.advance();
-	//			string commandType = parser.getCurrentCommandType();
+						bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+						bool thereIsCommand = (commandType != "");
+						if (thereIsCommand && commandTypeIsNotReturn)
+						{
+							bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
+							bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
+								commandType == "C_POP");
 
-	//			bool commandTypeIsNotReturn = (commandType != "C_RETURN");
-	//			bool thereIsCommand = (commandType != "");
-	//			if (thereIsCommand && commandTypeIsNotReturn)
-	//			{
-	//				bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
-	//				bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
-	//					                         commandType == "C_POP");
+							string command = parser.getCurrentCommand();
 
-	//				string command = parser.getCurrentCommand();
+							if (commandTypeIsArithmetic) writer.writeArithmetic(command);
+							else if (commandTypeIsPushPop)
+							{
+								string modifier = parser.getCurrentModifier();
+								int index = parser.getCurrentIndex();
 
-	//				if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-	//				else if (commandTypeIsPushPop)
-	//				{
-	//					string modifier = parser.getCurrentModifier();
-	//					int index = parser.getCurrentIndex();
+								writer.writePushPop(command, modifier, index);
+							}
+						}
+					}
+					VMfileCounter++;
+				}
+			}
+		}
+	}
+	// Input is file
+	else
+	{
+		if (fileIsVMFile(input))
+		{
+			string inputFileName = input; 
+			Parser parser(inputFileName);
+			CodeWriter writer;
+			writer.initialize(inputFileName, VMfileCounter);
 
-	//					writer.writePushPop(command, modifier, index);
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
-	//return 0;
+			while (parser.hasMoreLines())
+			{
+				parser.advance();
+				string commandType = parser.getCurrentCommandType();
+
+				bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+				bool thereIsCommand = (commandType != "");
+				if (thereIsCommand && commandTypeIsNotReturn)
+				{
+					bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
+					bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
+						                         commandType == "C_POP");
+
+					string command = parser.getCurrentCommand();
+
+					if (commandTypeIsArithmetic) writer.writeArithmetic(command);
+					else if (commandTypeIsPushPop)
+					{
+						string modifier = parser.getCurrentModifier();
+						int index = parser.getCurrentIndex();
+
+						writer.writePushPop(command, modifier, index);
+					}
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 // Main function methods
@@ -297,7 +325,7 @@ bool fileIsVMFile(string file)
 	if (fileHasExtension)
 	{
 		string extension = file.substr(firstDotPos + 1);
-		if (extension == "vm") return true;
+		if (extension == "vm" || extension == "txt") return true;
 		else return false;
 	}
 	else return false;
@@ -529,29 +557,6 @@ int Parser::extractIndex(string cL)
 }
 
 // CodeWriter class methods
-
-CodeWriter::CodeWriter(string fn)
-{
-	fileWOExtension = fn.substr(0, fn.find("."));
-	assemblyCode.open(fn);
-
-	assemblyCode << "// Makes sure the preamble is not executed on first pass." << endl;
-	assemblyCode << "@8" << endl;
-	assemblyCode << "0;JMP" << endl;
-	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
-	assemblyCode << "(TRUE)" << endl;
-	assemblyCode << "// Makes sure the value is placed in righ register" << endl;
-	assemblyCode << "@SP" << endl;
-	assemblyCode << "A=M-1" << endl;
-	assemblyCode << "M=-1" << endl;
-	assemblyCode << "// Holds the value of the instruction to which to jump" << endl;
-	assemblyCode << "// After label is finished running." << endl;
-	assemblyCode << "@R13" << endl;
-	assemblyCode << "A=M" << endl;
-	assemblyCode << "0;JMP" << endl;
-
-	writtenInstructionsSoFar = 8;
-}
 CodeWriter::~CodeWriter()
 {
 	assemblyCode.close();
@@ -818,6 +823,81 @@ void CodeWriter::writePushPop(string c, string m, int i)
 
 			writtenInstructionsSoFar += 7;
 		}
+	}
+}
+/*
+	What it does: Writes the needed preamble for every translated file. It sets up the stack
+				  pointer to 256, calls the sys.init() function of the operating system, and
+				  writes the code for the all the comparisons in the program.
+
+	How it does it: 	1. Set up the stack pointer to 256
+						2. Sets up the Go to (sys.init)
+						3. Sets up the jump to avoid running the (TRUE) label on the first pass
+						4. Writes the (TRUE) label, which is used by all comparison instructions
+*/
+void CodeWriter::writeInit()
+{
+	assemblyCode << "// Sets up the stacK" << endl;
+	assemblyCode << "@256" << endl;
+	assemblyCode << "D=A" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "// Calls Sys.init() " << endl;
+	assemblyCode << "@sys.init" << endl;
+	assemblyCode << "0;JMP" << endl;
+	assemblyCode << "// Makes sure the following is not executed on first pass." << endl;
+	assemblyCode << "@14" << endl;
+	assemblyCode << "0;JMP" << endl;
+	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
+	assemblyCode << "(TRUE)" << endl;
+	assemblyCode << "// Makes sure the value is placed in righ register" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "A=M-1" << endl;
+	assemblyCode << "M=-1" << endl;
+	assemblyCode << "// Holds the value of the instruction to which to jump" << endl;
+	assemblyCode << "// After label is finished running." << endl;
+	assemblyCode << "@R13" << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "0;JMP" << endl;
+
+	writtenInstructionsSoFar += 14;
+}
+/*
+	What it does: It handles the initializing of variables and writing of the bootstrap code
+				  The functionality depends on the number files that have been translated when
+				  it is called.
+
+	Assumptions: 1. This is only called when the driver is dealing with a folder with
+					multiple VM files.
+				 2. The file counter is never less than zero
+
+	Inputs:      1. A string containing the input file name
+				 2. An int that indicates how many files have been translated thus far.
+
+	How it does it:  1. If file is first to be translated:
+	                 2.   Set the file without extension for static variable translation
+					 3.   Set the output file name
+					 4.   Open a connection to the output file
+					 5.   Initialize the written instruction counters to 0
+					 6.   Call the writeInit() function to write the preamble of the code
+					 7. If file is not the first file to be translated:
+					 8.   Set the file without extension for static variable translation
+					 9.   Set the output file name for completeness
+*/
+void CodeWriter::initialize(string inputFileName, int filesTranslatedSoFar)
+{
+	if (filesTranslatedSoFar == 0)
+	{
+		fileWOExtension = inputFileName.substr(0, inputFileName.find("."));
+		outputFileName = fileWOExtension + ".asm";
+		assemblyCode.open(outputFileName);
+		writtenInstructionsSoFar = 0;
+		writeInit();
+	}
+	else
+	{
+		fileWOExtension = inputFileName.substr(0, inputFileName.find("."));
+		outputFileName = fileWOExtension + ".asm";
 	}
 }
 
