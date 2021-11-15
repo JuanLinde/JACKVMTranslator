@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <windows.h>
 #include <iomanip>
+#include <stack>
 using namespace std;
 
 /*
@@ -110,6 +111,7 @@ private:
 	string fileWOExtension;
 	ofstream assemblyCode;
 	int writtenInstructionsSoFar;
+	stack<string> functionTracker;
 public:
 	~CodeWriter();
 	/*
@@ -137,6 +139,18 @@ public:
 			         2. An int that indicates how many files have been translated thus far.
 	*/
 	void initialize(string, int);
+	/*
+		What it does: Writes HACK assembly code that effects the "label" command.
+
+		Assumptions:  1. Will not be called if there is no label command.
+					  2. The label is error free
+					  3. The stack tracking the called functions is not empty
+					  4. The input refers to a label that has not been used before inside the
+					     current function.
+
+		Inputs:       1. A string, l, containing the label to be output to the assembly file.
+	*/
+	void writeLabel(string);
 };
 /*
 	What it does:
@@ -208,6 +222,7 @@ int main(int argc, char* argv[])
 							bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
 							bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
 								commandType == "C_POP");
+							bool commandIsLabel = (commandType == "C_LABEL");
 
 							string command = parser.getCurrentCommand();
 
@@ -218,6 +233,11 @@ int main(int argc, char* argv[])
 								int index = parser.getCurrentIndex();
 
 								writer.writePushPop(command, modifier, index);
+							}
+							else if (commandIsLabel)
+							{
+								string modifier = parser.getCurrentModifier();
+								writer.writeLabel(modifier);
 							}
 						}
 					}
@@ -892,6 +912,7 @@ void CodeWriter::initialize(string inputFileName, int filesTranslatedSoFar)
 		outputFileName = fileWOExtension + ".asm";
 		assemblyCode.open(outputFileName);
 		writtenInstructionsSoFar = 0;
+		functionTracker.push("main");
 		writeInit();
 	}
 	else
@@ -899,5 +920,28 @@ void CodeWriter::initialize(string inputFileName, int filesTranslatedSoFar)
 		fileWOExtension = inputFileName.substr(0, inputFileName.find("."));
 		outputFileName = fileWOExtension + ".asm";
 	}
+}
+/*
+	What it does: Writes HACK assembly code that effects the "label" command.
+
+	Assumptions:  1. Will not be called if there is no label command.
+				  2. The label is error free
+				  3. The stack tracking the called functions is not empty
+				  4. The input refers to a label that has not been used before inside the
+				     current function.
+
+	Inputs:       1. A string, l, containing the label to be output to the assembly file.
+
+	How it works: 1. Get the name of the label´s scope from the function tracker stack.
+	              2. Construct the label to be output.
+				  3. Output the label to the assembly file.
+				  4. Update the written instruction count.
+*/
+void CodeWriter::writeLabel(string l)
+{
+	string currFunction = functionTracker.top();
+	string label = "(" + currFunction + "$" + l + ")";
+	assemblyCode << label << endl;
+	writtenInstructionsSoFar += 1;
 }
 
