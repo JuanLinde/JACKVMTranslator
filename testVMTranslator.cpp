@@ -913,7 +913,8 @@ void CodeWriter::writePushPop(string c, string m, int i)
 */
 void CodeWriter::writeInit()
 {
-	assemblyCode << "// Sets up the stacK" << endl;
+	int instructionsInPreamble = 14;
+	assemblyCode << "// Sets up the stack" << endl;
 	assemblyCode << "@256" << endl;
 	assemblyCode << "D=A" << endl;
 	assemblyCode << "@SP" << endl;
@@ -922,7 +923,8 @@ void CodeWriter::writeInit()
 	assemblyCode << "@sys.init" << endl;
 	assemblyCode << "0;JMP" << endl;
 	assemblyCode << "// Makes sure the following is not executed on first pass." << endl;
-	assemblyCode << "@14" << endl;
+	assemblyCode << "// Jumps to the real first instruction of the program." << endl;
+	assemblyCode << "@" << instructionsInPreamble << endl;
 	assemblyCode << "0;JMP" << endl;
 	assemblyCode << "// Provides all the definitions for comparison instructions." << endl;
 	assemblyCode << "(TRUE)" << endl;
@@ -936,7 +938,7 @@ void CodeWriter::writeInit()
 	assemblyCode << "A=M" << endl;
 	assemblyCode << "0;JMP" << endl;
 
-	writtenInstructionsSoFar += 14;
+	writtenInstructionsSoFar += instructionsInPreamble;
 }
 /*
 	What it does: It handles the initializing of variables and writing of the bootstrap code
