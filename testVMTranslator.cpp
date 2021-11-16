@@ -164,6 +164,21 @@ public:
 
 	*/
 	void writeGOTO(string);
+	/*
+		What it does: Writes HACK assembly code that effects the JACK VM if-goto command.
+
+		Assumptions:
+
+		  1. The label to which to jump is always inside a function.
+		  2. Label has not errors.
+		  3. The compiler translates where to jump if the jump is taken.
+
+		Inputs:
+
+		  1. A string, l, containing the instruction to which to jump if the condition is met.
+
+	*/
+	void writeIf(string);
 };
 /*
 	What it does:
@@ -232,31 +247,36 @@ int main(int argc, char* argv[])
 						bool thereIsCommand = (commandType != "");
 						if (thereIsCommand && commandTypeIsNotReturn)
 						{
-							bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
 							bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
 								commandType == "C_POP");
-							bool commandIsLabel = (commandType == "C_LABEL");
-							bool commandIsGOTO = (commandType == "C_GOTO");
 
-							string command = parser.getCurrentCommand();
-
-							if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-							else if (commandTypeIsPushPop)
+							if (commandTypeIsPushPop)
 							{
+								string command = parser.getCurrentCommand();
 								string modifier = parser.getCurrentModifier();
 								int index = parser.getCurrentIndex();
 
 								writer.writePushPop(command, modifier, index);
 							}
-							else if (commandIsLabel)
+							else if (commandType == "C_ARITHMETIC")
 							{
-								string label = parser.getCurrentModifier();
-								writer.writeLabel(label);
+								string command = parser.getCurrentCommand();
+								writer.writeArithmetic(command);
 							}
-							else if (commandIsGOTO)
+							else if (commandType == "C_LABEL")
+							{
+								string modifier = parser.getCurrentModifier();
+								writer.writeLabel(modifier);
+							}
+							else if (commandType == "C_GOTO")
 							{
 								string label = parser.getCurrentModifier();
 								writer.writeGOTO(label);
+							}
+							else if (commandType == "C_IF")
+							{
+								string label = parser.getCurrentModifier();
+								writer.writeIf(label);
 							}
 						}
 					}
@@ -284,31 +304,36 @@ int main(int argc, char* argv[])
 				bool thereIsCommand = (commandType != "");
 				if (thereIsCommand && commandTypeIsNotReturn)
 				{
-					bool commandTypeIsArithmetic = (commandType == "C_ARITHMETIC");
 					bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
 						                         commandType == "C_POP");
-					bool commandIsLabel = (commandType == "C_LABEL");
-					bool commandIsGOTO = (commandType == "C_GOTO");
 
-					string command = parser.getCurrentCommand();
-
-					if (commandTypeIsArithmetic) writer.writeArithmetic(command);
-					else if (commandTypeIsPushPop)
+					if (commandTypeIsPushPop)
 					{
+						string command = parser.getCurrentCommand();
 						string modifier = parser.getCurrentModifier();
 						int index = parser.getCurrentIndex();
 
 						writer.writePushPop(command, modifier, index);
 					}
-					else if (commandIsLabel)
+					else if (commandType == "C_ARITHMETIC")
+					{
+						string command = parser.getCurrentCommand();
+						writer.writeArithmetic(command);
+					}
+					else if (commandType == "C_LABEL")
 					{
 						string modifier = parser.getCurrentModifier();
 						writer.writeLabel(modifier);
 					}
-					else if (commandIsGOTO)
+					else if (commandType == "C_GOTO")
 					{
 						string label = parser.getCurrentModifier();
 						writer.writeGOTO(label);
+					}
+					else if (commandType == "C_IF")
+					{
+						string label = parser.getCurrentModifier();
+						writer.writeIf(label);
 					}
 				}
 			}
@@ -972,8 +997,8 @@ void CodeWriter::writeLabel(string l)
 {
 	string currFunction = functionTracker.top();
 	string label = "(" + currFunction + "$" + l + ")";
+	assemblyCode << "// LABEL " << l << " IN " << currFunction << endl;
 	assemblyCode << label << endl;
-	writtenInstructionsSoFar += 1;
 }
 /*
 	What it does: Writes HACK assembly code that effects the JACK VM "goto" command.
@@ -996,9 +1021,47 @@ void CodeWriter::writeGOTO(string l)
 {
 	string currFunct = functionTracker.top();
 	string label = currFunct + "$" + l;
-	assemblyCode << "// Unconditional jump to (" << label << ")" << endl;
+	assemblyCode << "// GO TO (" << label << ")" << endl;
 	assemblyCode << "@" << label << endl;
 	assemblyCode << "0;JMP" << endl;
 	writtenInstructionsSoFar += 2;
+}
+/*
+	What it does: Writes HACK assembly code that effects the JACK VM if-goto command.
+
+	Assumptions:
+
+	  1. The label to which to jump is always inside a function.
+	  2. Label has not errors.
+	  3. The compiler translates where to jump if the jump is taken.
+
+	Inputs:
+	
+	  1. A string, l, containing the instruction to which to jump if the condition is met.
+
+	How it works:
+
+	  1. Get the name of the label's function
+	  2. Write the instructions to pop the stack and save the value
+	  3. Construct the label according to the language specs
+	  4. Write the assembly instructions to make the jump comparing the top of the stack to zero.
+	  5. Updates the written instruction count
+*/
+void CodeWriter::writeIf(string l)
+{
+	string currFunct = functionTracker.top();
+	assemblyCode << "// IF-GOTO " << l << " IN " << currFunct <<  endl;
+	assemblyCode << "// Pops stack and saves value." << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "// Compares result to zero and jumps if not equal." << endl;
+	assemblyCode << "// Continues execution if comparison is equal 0." << endl;
+
+	string label = currFunct + "$" + l;
+	assemblyCode << "@" << label << endl;
+	assemblyCode << "D;JNE" << endl;
+
+	writtenInstructionsSoFar += 5;
 }
 
