@@ -112,6 +112,7 @@ private:
 	ofstream assemblyCode;
 	int writtenInstructionsSoFar;
 	stack<string> functionTracker;
+
 public:
 	~CodeWriter();
 	/*
@@ -179,6 +180,25 @@ public:
 
 	*/
 	void writeIf(string);
+	/*
+		What it does: Writes HACK assembly code that effects the JACK VM "call" command.
+
+		Assumptions:
+
+		Inputs:
+
+			1. A string, fn, that contains the function name of the called function.
+			2. An int, na, that contains the number of arguments of the function.
+
+	*/
+	void writeCall(string, int);
+	/*
+		What it does: Writes the HACK assembly instructions that effect the "return" JACK VM command.
+
+	*/
+	void writeReturn();
+
+	void writeFunction(string, int);
 };
 /*
 	What it does:
@@ -243,9 +263,9 @@ int main(int argc, char* argv[])
 						parser.advance();
 						string commandType = parser.getCurrentCommandType();
 
-						bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+						bool commandTypeIsReturn = (commandType == "C_RETURN");
 						bool thereIsCommand = (commandType != "");
-						if (thereIsCommand && commandTypeIsNotReturn)
+						if (thereIsCommand && !commandTypeIsReturn)
 						{
 							bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
 								commandType == "C_POP");
@@ -278,7 +298,23 @@ int main(int argc, char* argv[])
 								string label = parser.getCurrentModifier();
 								writer.writeIf(label);
 							}
+							else if (commandType == "C_CALL")
+							{
+								string functionName = parser.getCurrentModifier();
+								int numArgs = parser.getCurrentIndex();
+
+								writer.writeCall(functionName, numArgs);
+
+							}
+							else if (commandType == "C_FUNCTION")
+							{
+								string functionName = parser.getCurrentModifier();
+								int numLocals = parser.getCurrentIndex();
+
+								writer.writeFunction(functionName, numLocals);
+							}
 						}
+						else if (thereIsCommand && commandTypeIsReturn) writer.writeReturn();
 					}
 					VMfileCounter++;
 				}
@@ -300,12 +336,12 @@ int main(int argc, char* argv[])
 				parser.advance();
 				string commandType = parser.getCurrentCommandType();
 
-				bool commandTypeIsNotReturn = (commandType != "C_RETURN");
+				bool commandTypeIsReturn = (commandType == "C_RETURN");
 				bool thereIsCommand = (commandType != "");
-				if (thereIsCommand && commandTypeIsNotReturn)
+				if (thereIsCommand && !commandTypeIsReturn)
 				{
-					bool commandTypeIsPushPop = (commandType == "C_PUSH" || 
-						                         commandType == "C_POP");
+					bool commandTypeIsPushPop = (commandType == "C_PUSH" ||
+						commandType == "C_POP");
 
 					if (commandTypeIsPushPop)
 					{
@@ -335,7 +371,23 @@ int main(int argc, char* argv[])
 						string label = parser.getCurrentModifier();
 						writer.writeIf(label);
 					}
+					else if (commandType == "C_CALL")
+					{
+						string functionName = parser.getCurrentModifier();
+						int numArgs = parser.getCurrentIndex();
+
+						writer.writeCall(functionName, numArgs);
+
+					}
+					else if (commandType == "C_FUNCTION")
+					{
+						string functionName = parser.getCurrentModifier();
+						int numLocals = parser.getCurrentIndex();
+
+						writer.writeFunction(functionName, numLocals);
+					}
 				}
+				else if (thereIsCommand && commandTypeIsReturn) writer.writeReturn();
 			}
 		}
 	}
@@ -615,7 +667,7 @@ string Parser::extractModifier(string cL)
 bool Parser::currentInstructionHasIndex()
 {
 	bool currInstHasIndex = (currentCommandType == "C_PUSH" || currentCommandType == "C_POP" ||
-		currentCommand == "C_FUNCTION");
+		currentCommandType == "C_FUNCTION");
 
 	if (currInstHasIndex) return true;
 	else return false;
@@ -1066,4 +1118,217 @@ void CodeWriter::writeIf(string l)
 
 	writtenInstructionsSoFar += 5;
 }
+/*
+	What it does: Writes HACK assembly code that effects the JACK VM "call" command.
 
+	Assumptions:
+
+	Inputs:
+
+	    1. A string, fn, that contains the function name of the called function.
+		2. An int, na, that contains the number of arguments of the function.
+
+	How it works:
+
+	    1. Writes assembly to push the return-address to the stack
+		2. Writes assembly to push the LCL pointer to the stack
+		3. Writes assembly to push the ARG pointer to the stack
+		4. Writes assembly to push the THIS pointer to the stack
+		5. Writes assembly to push the THAT pointer to the stack
+		6. Writes assembly to reposition the ARG pointer to SP-#Args-5
+		7. Writes assembly to repostion the LCL pointer to the SP pointer
+		8. Writes assembly to go to the function label
+		9. Writes assembly to generate a label for the return address
+*/
+void CodeWriter::writeCall(string fn, int na)
+{
+	int HACKInstInCallCommand = 40;
+	int retAddress = writtenInstructionsSoFar + HACKInstInCallCommand;
+	int regToArg0FromStackPointer = na - 5;
+
+	assemblyCode << "// CALL " << fn << endl;
+	// 1.
+	assemblyCode << "// Pushes return address to stack" << endl;
+	assemblyCode << "// Stores value to be pushed." << endl;
+	assemblyCode << "@" << retAddress << endl;
+	assemblyCode << "D=A" << endl;
+	assemblyCode << "// Pushes value into the stack and updates pointers" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "M=M+1" << endl;
+	// 2-5.
+	assemblyCode << "// Pushes the pointers LCL, THIS, THAT to stack" << endl;
+	for (int i = 1; i <= 4; i++)
+	{
+		assemblyCode << "// Stores value to be pushed." << endl;
+		assemblyCode << "@R" << i << endl;
+		assemblyCode << "D=M" << endl;
+		assemblyCode << "// Pushes value into the stack and updates pointers" << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "A=M" << endl;
+		assemblyCode << "M=D" << endl;
+		assemblyCode << "@SP" << endl;
+		assemblyCode << "M=M+1" << endl;
+	}
+	// 6.
+	assemblyCode << "// Repositions the arg pointer to arg 0." << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@" << regToArg0FromStackPointer << endl;
+	assemblyCode << "D=M-A" << endl;
+	assemblyCode << "@ARG" << endl;
+	assemblyCode << "M=D" << endl;
+	// 7.
+	assemblyCode << "// Positions the LCL pointer to SP" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@LCL" << endl;
+	assemblyCode << "M=D" << endl;
+	// 8.
+	string currFunct = functionTracker.top();
+	string label = currFunct + "$" + fn;
+	assemblyCode << "// Go to function label" << "(" << label << ")" << endl;
+	assemblyCode << "@" << label << endl;
+	assemblyCode << "0;JMP" << endl;
+	// 9.
+	string retLabel = currFunct + "$" + fn + "RET";
+	assemblyCode << "// Label for return address" << endl;
+	assemblyCode << "(" << retLabel << ")" << endl;
+
+	writtenInstructionsSoFar += HACKInstInCallCommand;
+}
+/*
+	What it does: Writes the HACK assembly instructions that effect the "return" JACK VM command.
+
+	How it works:
+
+		(Write HACK Assembly that)
+	    1. Save the beginning of the callee's frame.
+		2. Save the return address.
+		3. Store the return value in ARG 0.
+		4. Reposition the Stack pointer.
+		5. Reposition the THAT pointer.
+		6. Reposition the THIS pointer.
+		7. Repostion the ARG pointer.
+		8. Reposition the LCL pointer.
+		9. Go to return address in the caller's code.
+*/
+void CodeWriter::writeReturn()
+{
+	// 1. Saves the beginning of the callee's frame.
+	assemblyCode << "// RETURN" << endl;
+	assemblyCode << "// Sets LCL to frame temp variable." << endl;
+	assemblyCode << "@LCL" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "M=D" << endl;
+	// 2. Saves the caller's return address
+	assemblyCode << "// Saves the caller's return address to temp variable." << endl;
+	assemblyCode << "@5" << endl;
+	assemblyCode << "D=A" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "A=M-D" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@R6" << endl;
+	assemblyCode << "M=D" << endl;
+	// 3. Store function's return value in ARG 0 of caller.
+	assemblyCode << "// Saves the function´s return value to the stack" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@ARG" << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "M=D" << endl;
+	// 4. Repositions the stack pointer to follow caller's ARG0 + 1
+	assemblyCode << "// Repositions stack pointer" << endl;
+	assemblyCode << "@ARG" << endl;
+	assemblyCode << "D=M+1" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "M=D" << endl;
+	// 5-8. Writes HACK assembly that repositions the caller's pointers
+	assemblyCode << "// Repositions pointers in relation to frame's address" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@THAT" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@THIS" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@ARG" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "AM=M-1" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@LCL" << endl;
+	assemblyCode << "M=D" << endl;
+	// 6. Writes HACK code to jump to caller's return address
+	assemblyCode << "// Jumps to caller's return address" << endl;
+	assemblyCode << "@R6" << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "0;JMP" << endl;
+
+	functionTracker.pop();    // Makes sure that labels from now on have the right function's name
+	writtenInstructionsSoFar += 44;
+}
+/*
+	What it does: Writes HACK assembly that effects the "function" JACK VM command.
+
+	Inputs:
+
+	    1. A string, fn, containing the name of the function
+		2. An int, nl, containing the number of local variables
+
+	How it works:
+		(Writes HACK)
+		0. Declare a label for the function entry
+	    1. Repeat nl times
+		2.    push 0
+*/
+void CodeWriter::writeFunction(string fn, int nl)
+{
+	functionTracker.push(fn); // Makes sure that the labels have the curr. functs. name
+
+	// 0. Constructs and writes HACK that declares a label for the function entry
+	string functionLabel = "(" + fn + ")";
+	assemblyCode << functionLabel << endl;
+	// 1. Writes code to push 0 for all local variables
+	assemblyCode << "// Pushes 0 to " << nl << " local variables" << endl;
+	assemblyCode << "// Uses temp registers R5 and R6 to hold index and target" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "M=0" << endl;
+	assemblyCode << "@" << nl << endl;
+	assemblyCode << "D=A" << endl;
+	assemblyCode << "@R6" << endl;
+	assemblyCode << "M=D" << endl;
+	assemblyCode << "// Enters a loop to push 0 into the stack" << endl;
+	assemblyCode << "(LOOP_0)" << endl;
+	assemblyCode << "// If i - " << nl << " >= 0" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "D=M" << endl;
+	assemblyCode << "@R6" << endl;
+	assemblyCode << "D=D-M" << endl;
+	assemblyCode << "@END_LOOP_0" << endl;
+	assemblyCode << "D;JGE" << endl;
+	assemblyCode << "// Pushes 0 to stack and updates i" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "A=M" << endl;
+	assemblyCode << "M=0" << endl;
+	assemblyCode << "@SP" << endl;
+	assemblyCode << "M=M+1" << endl;
+	assemblyCode << "@R5" << endl;
+	assemblyCode << "M=M+1" << endl;
+	assemblyCode << "// Jumps to LOOP_0" << endl;
+	assemblyCode << "@LOOP_0" << endl;
+	assemblyCode << "0;JMP" << endl;
+	assemblyCode << "(END_LOOP_0)" << endl;
+
+	writtenInstructionsSoFar += 21;
+}
